@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Portemilio",
+    "slug": "portemilio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1e4d6b",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.portemilio.app"
+    },
+    "android": {
+      "package": "com.portemilio.app"
+    },
+    "plugins": ["expo-notifications"]
+  }
+}

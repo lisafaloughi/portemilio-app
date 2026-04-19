@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(node seed.js)",
+      "Bash(node server.js)",
+      "Bash(curl -s http://localhost:4000/health)",
+      "Bash(curl -s http://localhost:4000/api/facilities)",
+      "Bash(curl -s -X POST http://localhost:4000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"guest@portemilio.com\",\"password\":\"guest123\"}')",
+      "Bash(python3 -c 'import json,sys;d=json.load\\(sys.stdin\\);print\\(\"Restaurant:\",d[\"name\"],\"| menu items:\",len\\(d[\"menu\"]\\)\\)')",
+      "Bash(curl -s http://localhost:4000/api/menu/plat-du-jour)",
+      "Bash(python3 -c 'import json,sys;d=json.load\\(sys.stdin\\);print\\(\"Plats du jour:\",[x[\"name\"] for x in d]\\)')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:4000/admin/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:4000/admin/app.js)",
+      "Bash(lsof -nP -iTCP:4000 -sTCP:LISTEN)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(lsof -nP -iTCP:4000)",
+      "Bash(brctl status *)",
+      "Bash(ln -s node_modules.nosync node_modules)",
+      "Bash(watchman watch-del *)",
+      "Bash(watchman watch-project *)",
+      "Bash(xattr /Users/lisafaloughi/Desktop/Portemilio/mobile/node_modules.nosync/expo-asset/build/index.js)"
+    ]
+  }
+}
