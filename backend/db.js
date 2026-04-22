@@ -15,6 +15,7 @@ function init() {
       password_hash TEXT NOT NULL,
       room_number TEXT,
       chalet_number TEXT,
+      birthday TEXT,
       is_admin INTEGER DEFAULT 0,
       push_token TEXT,
       created_at TEXT DEFAULT (datetime('now'))
@@ -128,5 +129,13 @@ function init() {
 }
 
 init();
+
+// Migrations for existing databases
+function hasColumn(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+}
+if (!hasColumn('users', 'birthday')) {
+  db.exec(`ALTER TABLE users ADD COLUMN birthday TEXT`);
+}
 
 module.exports = db;

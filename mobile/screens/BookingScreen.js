@@ -93,7 +93,7 @@ function toLocal(iso) {
 const styles = StyleSheet.create({
   label: { ...font.small, marginTop: spacing.md, marginBottom: spacing.xs },
   input: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.md,
     paddingHorizontal: spacing.md, paddingVertical: 12, fontSize: 15, backgroundColor: '#fff',
   },
 });

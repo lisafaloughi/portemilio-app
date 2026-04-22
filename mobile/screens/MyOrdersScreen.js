@@ -1,24 +1,29 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Screen, Card, Loading } from '../components/ui';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { HeaderScreen, Card, Loading } from '../components/ui';
 import { colors, spacing, font } from '../theme';
 import { api } from '../api';
 import { useCart } from '../App';
 
-export default function MyOrdersScreen() {
+export default function MyOrdersScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
   const { cart } = useCart();
 
-  const load = useCallback(() => api.myDeliveries().then(r => { setItems(r); setLoading(false); }), []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const load = useCallback(() => api.myDeliveries().then(r => {
+    setItems(r);
+    setLoading(false);
+    setRefreshing(false);
+  }), []);
+  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
-  if (loading) return <Screen><Loading /></Screen>;
+  const onRefresh = () => { setRefreshing(true); load(); };
 
   return (
-    <Screen onRefresh={() => { setLoading(true); load(); }}>
+    <HeaderScreen title="Orders" navigation={navigation} onRefresh={onRefresh} refreshing={refreshing}>
       {cart.length > 0 && (
         <Pressable
           onPress={() => navigation.navigate('Cart')}
@@ -27,11 +32,19 @@ export default function MyOrdersScreen() {
             marginBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'
           }}
         >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>🛒 Cart · {cart.reduce((a, b) => a + b.qty, 0)} items</Text>
-          <Text style={{ color: '#fff' }}>Checkout →</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <MaterialCommunityIcons name="cart-outline" size={18} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Cart · {cart.reduce((a, b) => a + b.qty, 0)} items</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={{ color: '#fff' }}>Checkout</Text>
+            <MaterialCommunityIcons name="chevron-right" size={18} color="#fff" />
+          </View>
         </Pressable>
       )}
-      {items.length === 0 ? (
+      {loading ? (
+        <Loading />
+      ) : items.length === 0 ? (
         <Text style={{ ...font.small, textAlign: 'center', marginTop: spacing.xl }}>
           No delivery orders yet. Open a restaurant with "Delivery" and add items to your cart.
         </Text>
@@ -53,7 +66,7 @@ export default function MyOrdersScreen() {
           </View>
         </Card>
       ))}
-    </Screen>
+    </HeaderScreen>
   );
 }
 

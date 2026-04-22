@@ -16,16 +16,18 @@ app.use('/admin', express.static(path.join(__dirname, 'public')));
 const api = express.Router();
 
 // ---------- Auth ----------
+const USER_COLS = 'id, name, email, phone, room_number, chalet_number, birthday, is_admin';
+
 api.post('/auth/register', (req, res) => {
-  const { name, email, phone, password, room_number, chalet_number } = req.body || {};
+  const { name, email, phone, password, room_number, chalet_number, birthday } = req.body || {};
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email, password required' });
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
   if (existing) return res.status(400).json({ error: 'Email already registered' });
   const result = db.prepare(`
-    INSERT INTO users (name, email, phone, password_hash, room_number, chalet_number)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name, email.toLowerCase(), phone || null, hashPassword(password), room_number || null, chalet_number || null);
-  const user = db.prepare('SELECT id, name, email, phone, room_number, chalet_number, is_admin FROM users WHERE id = ?').get(result.lastInsertRowid);
+    INSERT INTO users (name, email, phone, password_hash, room_number, chalet_number, birthday)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(name, email.toLowerCase(), phone || null, hashPassword(password), room_number || null, chalet_number || null, birthday || null);
+  const user = db.prepare(`SELECT ${USER_COLS} FROM users WHERE id = ?`).get(result.lastInsertRowid);
   res.json({ token: signToken(user), user });
 });
 
@@ -36,16 +38,17 @@ api.post('/auth/login', (req, res) => {
   if (!row || !verifyPassword(password, row.password_hash)) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  const user = { id: row.id, name: row.name, email: row.email, phone: row.phone, room_number: row.room_number, chalet_number: row.chalet_number, is_admin: !!row.is_admin };
+  const user = { id: row.id, name: row.name, email: row.email, phone: row.phone, room_number: row.room_number, chalet_number: row.chalet_number, birthday: row.birthday, is_admin: !!row.is_admin };
   res.json({ token: signToken(row), user });
 });
 
 api.get('/auth/me', authRequired, (req, res) => {
-  const row = db.prepare('SELECT id, name, email, phone, room_number, chalet_number, is_admin FROM users WHERE id = ?').get(req.user.id);
+  const row = db.prepare(`SELECT ${USER_COLS} FROM users WHERE id = ?`).get(req.user.id);
   res.json({ user: row });
 });
 
 api.put('/auth/me', authRequired, (req, res) => {
+  // birthday is intentionally excluded — set at registration only
   const { name, phone, room_number, chalet_number, push_token } = req.body || {};
   db.prepare(`
     UPDATE users SET
@@ -56,7 +59,7 @@ api.put('/auth/me', authRequired, (req, res) => {
       push_token = COALESCE(?, push_token)
     WHERE id = ?
   `).run(name || null, phone || null, room_number || null, chalet_number || null, push_token || null, req.user.id);
-  const row = db.prepare('SELECT id, name, email, phone, room_number, chalet_number, is_admin FROM users WHERE id = ?').get(req.user.id);
+  const row = db.prepare(`SELECT ${USER_COLS} FROM users WHERE id = ?`).get(req.user.id);
   res.json({ user: row });
 });
 

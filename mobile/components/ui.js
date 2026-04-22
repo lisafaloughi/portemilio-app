@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, radius, font, placeholderColor, placeholderEmoji } from '../theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, spacing, radius, font, placeholderColor, placeholderIcon } from '../theme';
 
 export function Screen({ children, refreshing, onRefresh, scroll = true }) {
   const Body = scroll ? ScrollView : View;
@@ -14,6 +15,30 @@ export function Screen({ children, refreshing, onRefresh, scroll = true }) {
       >
         {children}
       </Body>
+    </SafeAreaView>
+  );
+}
+
+// White-background page with circular back button + large navy heading (matches Account info style)
+export function HeaderScreen({ title, navigation, children, onRefresh, refreshing, keyboardShouldPersistTaps }) {
+  const insets = useSafeAreaInsets();
+  useLayoutEffect(() => {
+    navigation?.setOptions({ headerShown: false });
+  }, [navigation]);
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xxl }}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined}
+      >
+        <Pressable style={styles.headerBackBtn} onPress={() => navigation?.goBack()} hitSlop={8}>
+          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>{title}</Text>
+        {children}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -31,13 +56,13 @@ export function Card({ children, style, onPress }) {
 
 export function PlaceholderImage({ keyName = '', category = '', height = 160, rounded = 'top' }) {
   const bg = placeholderColor(keyName || category);
-  const emoji = placeholderEmoji(category || keyName);
+  const icon = placeholderIcon(category || keyName);
   const borderRadius = rounded === 'top' ? { borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md }
     : rounded === 'all' ? { borderRadius: radius.md }
     : {};
   return (
     <View style={[{ height, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }, borderRadius]}>
-      <Text style={{ fontSize: 56 }}>{emoji}</Text>
+      <MaterialCommunityIcons name={icon} size={56} color="#fff" />
     </View>
   );
 }
@@ -50,7 +75,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, style })
     <Pressable
       onPress={disabled ? undefined : onPress}
       style={({ pressed }) => [
-        { backgroundColor: bg, borderColor, borderWidth: 1, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: spacing.lg, alignItems: 'center' },
+        { backgroundColor: bg, borderColor, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: spacing.lg, alignItems: 'center' },
         pressed && { opacity: 0.85 },
         style,
       ]}
@@ -98,9 +123,18 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     marginBottom: spacing.md,
     overflow: 'hidden',
+  },
+  headerBackBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  headerTitle: {
+    fontSize: 32, fontWeight: '700', color: colors.accent, marginBottom: spacing.lg,
   },
 });

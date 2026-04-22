@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Loading } from '../components/ui';
 import { colors, radius } from '../theme';
 import { api } from '../api';
@@ -76,14 +77,15 @@ export default function RestaurantDetailScreen({ route, navigation }) {
             style={[styles.backBtn, { top: insets.top + 8 }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <MaterialCommunityIcons name="arrow-left" size={22} color="#fff" />
           </Pressable>
           {myItemsCount > 0 ? (
             <Pressable
               style={[styles.cartBtn, { top: insets.top + 8 }]}
               onPress={() => navigation.navigate('Cart')}
             >
-              <Text style={styles.cartText}>🛒 {myItemsCount}</Text>
+              <MaterialCommunityIcons name="cart-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.cartText}>{myItemsCount}</Text>
             </Pressable>
           ) : null}
           <View style={styles.heroFooter}>
@@ -93,7 +95,7 @@ export default function RestaurantDetailScreen({ route, navigation }) {
             </View>
             {r.location ? (
               <View style={styles.locationBtn}>
-                <Text style={styles.locationIcon}>📍</Text>
+                <MaterialCommunityIcons name="map-marker-outline" size={18} color="#fff" />
               </View>
             ) : null}
           </View>
@@ -117,10 +119,10 @@ export default function RestaurantDetailScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {r.location ? <InfoRow icon="📍" title="Location" subtitle={r.location} /> : null}
+        {r.location ? <InfoRow icon="map-marker-outline" title="Location" subtitle={r.location} /> : null}
         {r.phone ? (
           <InfoRow
-            icon="📞"
+            icon="phone-outline"
             title="Call"
             subtitle={r.phone}
             onPress={() => Linking.openURL(`tel:${r.phone}`)}
@@ -129,7 +131,7 @@ export default function RestaurantDetailScreen({ route, navigation }) {
 
         {r.delivery ? (
           <View style={styles.deliveryBanner}>
-            <Text style={styles.deliveryIcon}>🛵</Text>
+            <MaterialCommunityIcons name="moped-outline" size={22} color={colors.accent} style={{ marginRight: 12 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.deliveryTitle}>Delivery to your chalet / room</Text>
               <Text style={styles.deliverySubtitle}>Add items to cart and check out. We deliver directly to you.</Text>
@@ -195,12 +197,12 @@ export default function RestaurantDetailScreen({ route, navigation }) {
 function InfoRow({ icon, title, subtitle, onPress }) {
   return (
     <Pressable style={styles.infoRow} onPress={onPress} disabled={!onPress}>
-      <Text style={styles.infoIcon}>{icon}</Text>
+      <MaterialCommunityIcons name={icon} size={22} color={colors.accent} style={{ marginRight: 16 }} />
       <View style={{ flex: 1 }}>
         <Text style={styles.infoTitle}>{title}</Text>
         {subtitle ? <Text style={styles.infoSubtitle}>{subtitle}</Text> : null}
       </View>
-      {onPress ? <Text style={styles.chevron}>›</Text> : null}
+      {onPress ? <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} /> : null}
     </Pressable>
   );
 }
@@ -215,21 +217,21 @@ const styles = StyleSheet.create({
   backBtn: {
     position: 'absolute',
     left: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backIcon: { fontSize: 22, color: '#fff' },
   cartBtn: {
     position: 'absolute',
     right: 16,
-    height: 44,
-    paddingHorizontal: 16,
-    borderRadius: 22,
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 19,
     backgroundColor: 'rgba(0,0,0,0.45)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -245,14 +247,13 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.95)', marginTop: 4 },
   locationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  locationIcon: { fontSize: 18 },
   block: { paddingHorizontal: 20, paddingVertical: 18 },
   timetableRow: { flexDirection: 'row', alignItems: 'center' },
   timetableLabel: { fontSize: 17, color: colors.text, width: 120 },
@@ -265,7 +266,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 18,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   infoIcon: { fontSize: 22, marginRight: 16 },
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     padding: 14,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     marginBottom: 10,
   },
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   reserveBtn: {

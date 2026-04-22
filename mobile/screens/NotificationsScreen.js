@@ -1,23 +1,31 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Screen, Card, Loading } from '../components/ui';
-import { colors, spacing, font } from '../theme';
+import { HeaderScreen, Card, Loading } from '../components/ui';
+import { spacing, font } from '../theme';
 import { api } from '../api';
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => api.myNotifications().then(r => { setItems(r); setLoading(false); }), []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const load = useCallback(() => api.myNotifications().then(r => {
+    setItems(r);
+    setLoading(false);
+    setRefreshing(false);
+  }), []);
+  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
-  if (loading) return <Screen><Loading /></Screen>;
-  if (!items.length) return <Screen><Text style={{ ...font.small, textAlign: 'center', marginTop: spacing.xl }}>No notifications yet.</Text></Screen>;
+  const onRefresh = () => { setRefreshing(true); load(); };
 
   return (
-    <Screen onRefresh={() => { setLoading(true); load(); }}>
-      {items.map(n => (
+    <HeaderScreen title="Alerts" navigation={navigation} onRefresh={onRefresh} refreshing={refreshing}>
+      {loading ? (
+        <Loading />
+      ) : items.length === 0 ? (
+        <Text style={{ ...font.small, textAlign: 'center', marginTop: spacing.xl }}>No notifications yet.</Text>
+      ) : items.map(n => (
         <Card key={n.id}>
           <View style={{ padding: spacing.md }}>
             <Text style={font.h3}>{n.title}</Text>
@@ -26,6 +34,6 @@ export default function NotificationsScreen() {
           </View>
         </Card>
       ))}
-    </Screen>
+    </HeaderScreen>
   );
 }

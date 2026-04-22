@@ -1,23 +1,35 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Screen, Card, Button, Loading } from '../components/ui';
-import { colors, spacing, font } from '../theme';
+import { HeaderScreen, Card, Button, Loading } from '../components/ui';
+import { spacing, font } from '../theme';
 import { api } from '../api';
 
-export default function MyBookingsScreen() {
+const ROOM_TYPES = new Set(['room', 'chalet', 'stay']);
+
+export default function MyBookingsScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => api.myBookings().then(r => { setItems(r); setLoading(false); }), []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const load = useCallback(() => api.myBookings().then(r => {
+    setItems(r.filter(b => ROOM_TYPES.has(b.resource_type)));
+    setLoading(false);
+    setRefreshing(false);
+  }), []);
+  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
-  if (loading) return <Screen><Loading /></Screen>;
-  if (!items.length) return <Screen><Text style={{ ...font.small, textAlign: 'center', marginTop: spacing.xl }}>No bookings yet. Book tennis, spa, a rental, an event, or a restaurant table from the Home screen.</Text></Screen>;
+  const onRefresh = () => { setRefreshing(true); load(); };
 
   return (
-    <Screen onRefresh={() => { setLoading(true); load(); }}>
-      {items.map(b => (
+    <HeaderScreen title="Bookings" navigation={navigation} onRefresh={onRefresh} refreshing={refreshing}>
+      {loading ? (
+        <Loading />
+      ) : items.length === 0 ? (
+        <Text style={{ ...font.small, textAlign: 'center', marginTop: spacing.xl }}>
+          No room reservations on file. Activity bookings (tennis, spa, rentals, events, restaurants) are in Order history.
+        </Text>
+      ) : items.map(b => (
         <Card key={b.id}>
           <View style={{ padding: spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -43,7 +55,7 @@ export default function MyBookingsScreen() {
           </View>
         </Card>
       ))}
-    </Screen>
+    </HeaderScreen>
   );
 }
 

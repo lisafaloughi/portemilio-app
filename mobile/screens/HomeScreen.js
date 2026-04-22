@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius } from '../theme';
 import SideDrawer from '../components/SideDrawer';
 
@@ -16,26 +17,30 @@ const { width } = Dimensions.get('window');
 const PADDING = 16;
 const GAP = 10;
 const HALF_WIDTH = (width - PADDING * 2 - GAP) / 2;
+const HALF_HEIGHT = HALF_WIDTH / 0.95;
 
-const img = (seed, w = 800, h = 500) =>
-  `https://picsum.photos/seed/${seed}/${w}/${h}`;
+const HERO_IMG = require('../assets/portemilio-home2.png');
 
-const HERO_IMG = img('portemilio-kaslik-hero', 1200, 900);
+const TODAYS_ACT_IMAGES = [
+  require('../assets/todays-act-1.jpg'),
+  require('../assets/todays-act-2.jpg'),
+  require('../assets/todays-act-3.jpg'),
+];
 
 const SECTIONS = [
   {
     title: 'Our Hotel',
     rows: [
       [
-        { title: 'Rooms', image: img('portemilio-rooms'), target: { name: 'Info' } },
-        { title: 'About the property', image: img('portemilio-property'), target: { name: 'Info' } },
+        { title: 'Rooms', image: require('../assets/rooms.jpg'), target: { name: 'Info' } },
+        { title: 'Front Desk', image: require('../assets/front-desk.jpg'), target: { name: 'Info' } },
       ],
       [
-        { title: 'Portemilio Privileges', full: true, image: img('portemilio-privileges', 1200, 600), target: { name: 'Info' } },
+        { title: 'Portemilio Heritage', full: true, image: require('../assets/portemilio-heritage.jpg'), target: { name: 'Info' } },
       ],
       [
-        { title: 'Lobby Lounge', image: img('portemilio-lobby'), target: { name: 'Info' } },
-        { title: 'Pools', image: img('portemilio-pools'), target: { name: 'Category', params: { category: 'pool', title: 'Pools' } } },
+        { title: 'Breakfast', image: require('../assets/breakfast.jpg'), target: { name: 'Info' } },
+        { title: 'Seaside Access', image: require('../assets/seaside-access.png'), target: { name: 'Category', params: { category: 'pool', title: 'Pools' } } },
       ],
     ],
   },
@@ -43,11 +48,11 @@ const SECTIONS = [
     title: 'Gastronomy',
     rows: [
       [
-        { title: 'Restaurants', full: true, image: img('portemilio-restaurants', 1200, 600), target: { name: 'Restaurants' } },
+        { title: 'Restaurants', full: true, image: require('../assets/restaurants.jpg'), target: { name: 'Restaurants' } },
       ],
       [
-        { title: 'Bars', image: img('portemilio-bars'), target: { name: 'Restaurants' } },
-        { title: 'Café', image: img('portemilio-cafe'), target: { name: 'Restaurants' } },
+        { title: 'Bars', image: require('../assets/bars.jpg'), target: { name: 'Restaurants' } },
+        { title: 'Celebrate Together', image: require('../assets/special-events.jpg'), target: { name: 'Restaurants' } },
       ],
     ],
   },
@@ -55,14 +60,14 @@ const SECTIONS = [
     title: 'Hotel Services',
     rows: [
       [
-        { title: 'Housekeeping', full: true, image: img('portemilio-housekeeping', 1200, 600), target: { name: 'Info' } },
+        { title: 'Housekeeping', full: true, image: require('../assets/housekeeping.jpg'), target: { name: 'Info' } },
       ],
       [
-        { title: 'Wellness Area', image: img('portemilio-wellness'), target: { name: 'FacilityDetail', params: { facilityKey: 'spa', title: 'Wellness' } } },
-        { title: 'Kids Club', image: img('portemilio-kids'), target: { name: 'FacilityDetail', params: { facilityKey: 'kids_club', title: 'Kids Club' } } },
+        { title: 'Wellness Area', image: require('../assets/wellness-area.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'spa', title: 'Wellness' } } },
+        { title: 'Room Service', image: require('../assets/room-service.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'kids_club', title: 'Kids Club' } } },
       ],
       [
-        { title: 'Gym', full: true, image: img('portemilio-gym', 1200, 600), target: { name: 'FacilityDetail', params: { facilityKey: 'gym', title: 'Gym' } } },
+        { title: 'Comedy Theatre', full: true, image: require('../assets/comedy-theatre.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'gym', title: 'Gym' } } },
       ],
     ],
   },
@@ -70,15 +75,23 @@ const SECTIONS = [
     title: 'Entertainment',
     rows: [
       [
-        { title: "Today's Activities", image: img('portemilio-activities'), target: { name: 'Events' } },
-        { title: 'Kids Activities', image: img('portemilio-kids-act'), target: { name: 'Events' } },
+        { title: "Today's Activities", images: TODAYS_ACT_IMAGES, target: { name: 'Events' } },
+        { title: 'Kids Club', image: require('../assets/kids-activities.jpg'), target: { name: 'Events' } },
       ],
       [
-        { title: "Tonight's Show", full: true, image: img('portemilio-show', 1200, 600), target: { name: 'Events' } },
+        { title: 'Pools', full: true, image: require('../assets/pools.png'), target: { name: 'Events' } },
       ],
       [
-        { title: 'Tennis', image: img('portemilio-tennis'), target: { name: 'FacilityDetail', params: { facilityKey: 'tennis', title: 'Tennis' } } },
-        { title: 'Water Sports', image: img('portemilio-watersports'), target: { name: 'Rentals' } },
+        { title: 'Tennis', image: require('../assets/tennis.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'tennis', title: 'Tennis' } } },
+        { title: 'Water Sports', image: require('../assets/water-sports.jpg'), target: { name: 'Rentals' } },
+      ],
+    ],
+  },
+  {
+    title: 'Marina', // rendered title-less; acts as the standalone marina rectangle
+    rows: [
+      [
+        { title: 'Explore The Marina', full: true, image: require('../assets/marina.png'), target: { name: 'Info' } },
       ],
     ],
   },
@@ -86,8 +99,8 @@ const SECTIONS = [
     title: 'Destination',
     rows: [
       [
-        { title: 'Kaslik Guide', image: img('portemilio-kaslik'), target: { name: 'Info' } },
-        { title: 'Transport', image: img('portemilio-transport'), target: { name: 'Info' } },
+        { title: 'Jounieh Guide', image: require('../assets/jounieh-guide.jpg'), target: { name: 'Info' } },
+        { title: 'Get to the City', image: require('../assets/transport-to-the-city.png'), target: { name: 'Info' } },
       ],
     ],
   },
@@ -100,7 +113,7 @@ function Card({ card, onPress }) {
       style={[styles.card, card.full ? styles.cardFull : styles.cardHalf]}
     >
       <ImageBackground
-        source={{ uri: card.image }}
+        source={card.image}
         style={StyleSheet.absoluteFill}
         imageStyle={{ borderRadius: radius.lg }}
       >
@@ -108,6 +121,61 @@ function Card({ card, onPress }) {
       </ImageBackground>
       <Text style={styles.cardTitle}>{card.title}</Text>
     </Pressable>
+  );
+}
+
+function CarouselCard({ card, onPress }) {
+  const [index, setIndex] = useState(0);
+  const scrollRef = useRef(null);
+  const timerRef = useRef(null);
+  const images = card.images;
+  const len = images.length;
+
+  const startTimer = () => {
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setIndex(prev => {
+        const next = (prev + 1) % len;
+        scrollRef.current?.scrollTo({ x: next * HALF_WIDTH, animated: true });
+        return next;
+      });
+    }, 2000);
+  };
+
+  useEffect(() => {
+    startTimer();
+    return () => clearInterval(timerRef.current);
+  }, [len]);
+
+  return (
+    <View style={[styles.card, styles.cardHalf]}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScrollBeginDrag={() => clearInterval(timerRef.current)}
+        onMomentumScrollEnd={(e) => {
+          const i = Math.round(e.nativeEvent.contentOffset.x / HALF_WIDTH);
+          setIndex(i);
+          startTimer();
+        }}
+      >
+        {images.map((src, i) => (
+          <Pressable key={i} onPress={onPress} style={{ width: HALF_WIDTH, height: HALF_HEIGHT }}>
+            <ImageBackground source={src} style={StyleSheet.absoluteFill}>
+              <View style={styles.cardOverlay} />
+            </ImageBackground>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Text style={[styles.cardTitle, styles.carouselTitle]}>{card.title}</Text>
+      <View style={styles.dots} pointerEvents="none">
+        {images.map((_, i) => (
+          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -127,16 +195,16 @@ export default function HomeScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         <ImageBackground
-          source={{ uri: HERO_IMG }}
+          source={HERO_IMG}
           style={[styles.hero, { paddingTop: insets.top + 8 }]}
         >
           <View style={styles.heroOverlay} />
           <View style={styles.heroTopRow}>
             <Pressable style={styles.headerBtn} onPress={() => setDrawerOpen(true)}>
-              <Text style={styles.headerIcon}>☰</Text>
+              <MaterialCommunityIcons name="menu" size={20} color="#fff" />
             </Pressable>
             <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Profile')}>
-              <Text style={styles.headerIcon}>👤</Text>
+              <MaterialCommunityIcons name="account-outline" size={20} color="#fff" />
             </Pressable>
           </View>
           <View style={styles.heroTitleWrap}>
@@ -148,25 +216,29 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.pillWrap}>
           <View style={styles.pillRow}>
             <Pressable style={styles.pillBtn} onPress={() => navigation.navigate('Info')}>
-              <Text style={styles.pillIcon}>🛎️</Text>
+              <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
               <Text style={styles.pillText}>Live Requests</Text>
             </Pressable>
             <View style={styles.pillDivider} />
             <Pressable style={styles.pillBtn} onPress={() => navigation.navigate('ResortMap')}>
-              <Text style={styles.pillIcon}>🗺️</Text>
+              <MaterialCommunityIcons name="map-outline" size={18} color="#fff" />
               <Text style={styles.pillText}>Resort Map</Text>
             </Pressable>
           </View>
         </View>
 
-        {SECTIONS.map((section) => (
-          <View key={section.title} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
+        {SECTIONS.map((section, si) => (
+          <View key={si} style={[styles.section, section.marina && styles.sectionMarina]}>
+            {section.title ? <Text style={styles.sectionTitle}>{section.title}</Text> : null}
             {section.rows.map((row, ri) => (
               <View key={ri} style={styles.row}>
-                {row.map((card, ci) => (
-                  <Card key={ci} card={card} onPress={() => goTo(card.target)} />
-                ))}
+                {row.map((card, ci) =>
+                  'images' in card ? (
+                    <CarouselCard key={ci} card={card} onPress={() => goTo(card.target)} />
+                  ) : (
+                    <Card key={ci} card={card} onPress={() => goTo(card.target)} />
+                  )
+                )}
               </View>
             ))}
           </View>
@@ -177,7 +249,7 @@ export default function HomeScreen({ navigation }) {
         style={[styles.fab, { bottom: insets.bottom + 90 }]}
         onPress={() => navigation.navigate('FacilityDetail', { facilityKey: 'spa', title: 'Wellness' })}
       >
-        <Text style={styles.fabIcon}>💆</Text>
+        <MaterialCommunityIcons name="spa-outline" size={26} color="#fff" />
       </Pressable>
 
       <SideDrawer
@@ -205,16 +277,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerIcon: {
-    fontSize: 20,
-    color: '#fff',
   },
   heroTitleWrap: {
     alignItems: 'center',
@@ -254,9 +322,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  pillIcon: {
-    fontSize: 18,
-  },
   pillText: {
     color: '#fff',
     fontWeight: '600',
@@ -270,6 +335,9 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 32,
     paddingHorizontal: PADDING,
+  },
+  sectionMarina: {
+    marginTop: GAP,
   },
   sectionTitle: {
     fontSize: 24,
@@ -308,6 +376,30 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  carouselTitle: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  dots: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  dotActive: {
+    backgroundColor: '#fff',
+    width: 14,
+  },
   fab: {
     position: 'absolute',
     right: 20,
@@ -322,8 +414,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
-  },
-  fabIcon: {
-    fontSize: 26,
   },
 });

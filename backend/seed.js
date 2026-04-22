@@ -24,8 +24,8 @@ db.prepare(`
 `).run(hashPassword('admin123'));
 
 db.prepare(`
-  INSERT INTO users (name, email, password_hash, room_number, chalet_number)
-  VALUES ('Demo Guest', 'guest@portemilio.com', ?, NULL, '42')
+  INSERT INTO users (name, email, password_hash, room_number, chalet_number, birthday)
+  VALUES ('Demo Guest', 'guest@portemilio.com', ?, NULL, '42', '2003-05-30')
 `).run(hashPassword('guest123'));
 
 // Settings

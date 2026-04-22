@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, Alert, TextInput } from 'react-native';
+import { View, Text, Pressable, Alert, TextInput, StyleSheet } from 'react-native';
 import { Screen, Card, Button } from '../components/ui';
 import { colors, spacing, radius, font } from '../theme';
 import { useCart, useAuth } from '../App';
@@ -80,7 +80,7 @@ export default function CartScreen({ navigation }) {
               <Text style={{ ...font.small, marginTop: spacing.md, marginBottom: spacing.xs }}>Notes for the kitchen</Text>
               <TextInput
                 style={{
-                  borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+                  borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.md,
                   paddingHorizontal: spacing.md, paddingVertical: 10, backgroundColor: '#fff', minHeight: 60, textAlignVertical: 'top',
                 }}
                 multiline value={notes} onChangeText={setNotes} placeholder="Allergies, extras, etc."
@@ -102,7 +102,7 @@ export default function CartScreen({ navigation }) {
 }
 
 const qtyBtn = {
-  width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.border,
+  width: 32, height: 32, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', marginHorizontal: 2,
 };
 const qtyTxt = { fontSize: 18, fontWeight: '700', color: colors.accent };

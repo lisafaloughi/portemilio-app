@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius } from '../theme';
 import { useAuth } from '../App';
 
@@ -17,9 +18,9 @@ const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(width * 0.82, 340);
 
 const ITEMS = [
-  { key: 'language', icon: '🌐', title: 'Language', subtitle: 'English' },
-  { key: 'notifications', icon: '🔔', title: 'Notifications', subtitle: 'Alerts & preferences' },
-  { key: 'legal', icon: '📄', title: 'Legal', subtitle: 'Terms & privacy' },
+  { key: 'language', icon: 'translate', title: 'Language', subtitle: 'English' },
+  { key: 'notifications', icon: 'bell-outline', title: 'Notifications', subtitle: 'Alerts & preferences' },
+  { key: 'legal', icon: 'file-document-outline', title: 'Legal', subtitle: 'Terms & privacy' },
 ];
 
 export default function SideDrawer({ visible, onClose, navigation }) {
@@ -74,7 +75,12 @@ export default function SideDrawer({ visible, onClose, navigation }) {
           <Text style={styles.brandSub}>HOTEL & RESORT</Text>
           {user ? (
             <Text style={styles.userLine}>
-              {user.name || user.email || 'Guest'}
+              <Text style={styles.userName}>{user.name || user.email || 'Guest'}</Text>
+              {user.chalet_number ? (
+                <Text style={styles.userUnit}>{'  |  Chalet '}{user.chalet_number}</Text>
+              ) : user.room_number ? (
+                <Text style={styles.userUnit}>{'  |  Room '}{user.room_number}</Text>
+              ) : null}
             </Text>
           ) : null}
         </View>
@@ -88,12 +94,12 @@ export default function SideDrawer({ visible, onClose, navigation }) {
               style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.border + '80' }]}
               onPress={() => handleItem(item.key)}
             >
-              <Text style={styles.rowIcon}>{item.icon}</Text>
+              <MaterialCommunityIcons name={item.icon} size={22} color={colors.accent} style={{ marginRight: 16 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{item.title}</Text>
                 {item.subtitle ? <Text style={styles.rowSubtitle}>{item.subtitle}</Text> : null}
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} />
             </Pressable>
           ))}
         </View>
@@ -146,9 +152,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   userLine: {
+    marginTop: 14,
+  },
+  userName: {
     fontSize: 14,
     color: colors.subtle,
-    marginTop: 14,
+  },
+  userUnit: {
+    fontSize: 11,
+    color: colors.subtle,
   },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 24 },
   row: {
@@ -164,7 +176,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingTop: 12,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   signOutBtn: {
@@ -172,7 +184,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: radius.lg,
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   signOutText: { color: colors.danger, fontSize: 15, fontWeight: '700' },

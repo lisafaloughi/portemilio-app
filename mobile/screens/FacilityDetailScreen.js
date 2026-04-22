@@ -9,6 +9,7 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Loading } from '../components/ui';
 import { colors, radius } from '../theme';
 import { api } from '../api';
@@ -62,7 +63,7 @@ export default function FacilityDetailScreen({ route, navigation }) {
             style={[styles.backBtn, { top: insets.top + 8 }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <MaterialCommunityIcons name="arrow-left" size={22} color="#fff" />
           </Pressable>
           <View style={styles.heroFooter}>
             <View style={{ flex: 1 }}>
@@ -71,7 +72,7 @@ export default function FacilityDetailScreen({ route, navigation }) {
             </View>
             {f.location ? (
               <View style={styles.locationBtn}>
-                <Text style={styles.locationIcon}>📍</Text>
+                <MaterialCommunityIcons name="map-marker-outline" size={18} color="#fff" />
               </View>
             ) : null}
           </View>
@@ -95,17 +96,17 @@ export default function FacilityDetailScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {f.location ? <InfoRow icon="📍" title="Location" subtitle={f.location} /> : null}
-        {f.price ? <InfoRow icon="💳" title="Price" subtitle={f.price} /> : null}
+        {f.location ? <InfoRow icon="map-marker-outline" title="Location" subtitle={f.location} /> : null}
+        {f.price ? <InfoRow icon="credit-card-outline" title="Price" subtitle={f.price} /> : null}
         {f.phone ? (
           <InfoRow
-            icon="📞"
+            icon="phone-outline"
             title="Call"
             subtitle={f.phone}
             onPress={() => Linking.openURL(`tel:${f.phone}`)}
           />
         ) : null}
-        {f.extra_info ? <InfoRow icon="ℹ️" title="Information" subtitle={f.extra_info} /> : null}
+        {f.extra_info ? <InfoRow icon="information-outline" title="Information" subtitle={f.extra_info} /> : null}
       </ScrollView>
 
       {f.bookable ? (
@@ -129,12 +130,12 @@ export default function FacilityDetailScreen({ route, navigation }) {
 function InfoRow({ icon, title, subtitle, onPress }) {
   return (
     <Pressable style={styles.infoRow} onPress={onPress} disabled={!onPress}>
-      <Text style={styles.infoIcon}>{icon}</Text>
+      <MaterialCommunityIcons name={icon} size={22} color={colors.accent} style={{ marginRight: 16 }} />
       <View style={{ flex: 1 }}>
         <Text style={styles.infoTitle}>{title}</Text>
         {subtitle ? <Text style={styles.infoSubtitle}>{subtitle}</Text> : null}
       </View>
-      {onPress ? <Text style={styles.chevron}>›</Text> : null}
+      {onPress ? <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} /> : null}
     </Pressable>
   );
 }
@@ -149,14 +150,13 @@ const styles = StyleSheet.create({
   backBtn: {
     position: 'absolute',
     left: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backIcon: { fontSize: 22, color: '#fff' },
   heroFooter: { flexDirection: 'row', alignItems: 'flex-end', padding: 20 },
   heroTitle: {
     fontSize: 30,
@@ -168,14 +168,13 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.95)', marginTop: 4 },
   locationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  locationIcon: { fontSize: 18 },
   block: { paddingHorizontal: 20, paddingVertical: 18 },
   timetableRow: { flexDirection: 'row', alignItems: 'center' },
   timetableLabel: { fontSize: 17, color: colors.text, width: 120 },
@@ -188,13 +187,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 18,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
-  infoIcon: { fontSize: 22, marginRight: 16 },
   infoTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
   infoSubtitle: { fontSize: 14, color: colors.subtle, marginTop: 2 },
-  chevron: { fontSize: 26, color: colors.muted },
   bottomBar: {
     position: 'absolute',
     left: 0,
@@ -203,7 +200,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   bookBtn: {

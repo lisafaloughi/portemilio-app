@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback, createContext, useContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, Platform } from 'react-native';
+import { View, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -26,11 +25,13 @@ import CartScreen from './screens/CartScreen';
 import MyOrdersScreen from './screens/MyOrdersScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import AccountInfoScreen from './screens/AccountInfoScreen';
+import OrderHistoryScreen from './screens/OrderHistoryScreen';
+import PaymentsScreen from './screens/PaymentsScreen';
 import InfoScreen from './screens/InfoScreen';
 import ResortMapScreen from './screens/ResortMapScreen';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
 
 export const AuthCtx = createContext(null);
 export const CartCtx = createContext(null);
@@ -56,26 +57,6 @@ async function registerPushToken() {
   } catch { return null; }
 }
 
-function MainTabs() {
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
-        headerStyle: { backgroundColor: colors.accent },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '700' },
-      }}
-    >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: () => <Text>🏨</Text>, title: 'Portemilio', headerShown: false }} />
-      <Tab.Screen name="MyBookings" component={MyBookingsScreen} options={{ tabBarIcon: () => <Text>📅</Text>, title: 'Bookings' }} />
-      <Tab.Screen name="Orders" component={MyOrdersScreen} options={{ tabBarIcon: () => <Text>🛍️</Text>, title: 'Orders' }} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarIcon: () => <Text>🔔</Text>, title: 'Alerts' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: () => <Text>👤</Text>, title: 'Profile' }} />
-    </Tab.Navigator>
-  );
-}
-
 function AppStack() {
   return (
     <Stack.Navigator
@@ -87,7 +68,14 @@ function AppStack() {
         headerBackTitle: 'Home',
       }}
     >
-      <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MyBookings" component={MyBookingsScreen} options={{ title: 'Bookings' }} />
+      <Stack.Screen name="Orders" component={MyOrdersScreen} options={{ title: 'Orders' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Alerts' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
+      <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Account info' }} />
+      <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} options={{ title: 'Order history' }} />
+      <Stack.Screen name="Payments" component={PaymentsScreen} options={{ title: 'Payment methods' }} />
       <Stack.Screen name="Category" component={CategoryScreen} options={({ route }) => ({ title: route.params?.title || 'Category' })} />
       <Stack.Screen name="FacilityDetail" component={FacilityDetailScreen} options={({ route }) => ({ title: route.params?.title || 'Details' })} />
       <Stack.Screen name="Restaurants" component={RestaurantsScreen} options={{ title: 'Restaurants' }} />
@@ -96,7 +84,7 @@ function AppStack() {
       <Stack.Screen name="Events" component={EventsScreen} options={{ title: 'Events' }} />
       <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book' }} />
       <Stack.Screen name="Cart" component={CartScreen} options={{ title: 'Your Cart' }} />
-      <Stack.Screen name="Info" component={InfoScreen} options={{ title: 'Info' }} />
+      <Stack.Screen name="Info" component={InfoScreen} options={{ title: 'Live Requests' }} />
       <Stack.Screen name="ResortMap" component={ResortMapScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
@@ -148,24 +136,30 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const token = await loadToken();
-      if (token) {
-        try {
-          const { user } = await api.me();
-          setUser(user);
-        } catch {
-          await setToken(null);
+      const minDelay = new Promise(resolve => setTimeout(resolve, 2000));
+      const loadAuth = (async () => {
+        const token = await loadToken();
+        if (token) {
+          try {
+            const { user } = await api.me();
+            setUser(user);
+          } catch {
+            await setToken(null);
+          }
         }
-      }
+      })();
+      await Promise.all([minDelay, loadAuth]);
       setBooting(false);
     })();
   }, []);
 
   if (booting) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#fff', fontSize: 28, fontWeight: '700', letterSpacing: 1 }}>PORTEMILIO</Text>
-        <Text style={{ color: '#ffffffbb', marginTop: 4 }}>Kaslik, Lebanon</Text>
+      <View style={{ flex: 1, backgroundColor: '#E8E1CB' }}>
+        <Image
+          source={require('./assets/splash.png')}
+          style={{ flex: 1, width: '100%', resizeMode: 'contain' }}
+        />
       </View>
     );
   }

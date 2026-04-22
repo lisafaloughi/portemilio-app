@@ -1,7 +1,7 @@
 export const colors = {
   bg: '#f8f6f1',
   surface: '#ffffff',
-  text: '#1a1a1a',
+  text: '#333333',
   subtle: '#6b6b6b',
   muted: '#a0a0a0',
   accent: '#1e4d6b',
@@ -31,18 +31,23 @@ export function placeholderColor(key = '') {
   return palette[h % palette.length];
 }
 
-export function placeholderEmoji(category = '') {
+export function placeholderIcon(category = '') {
   const map = {
-    pool: '🏊', outdoor_pool: '🏊', indoor_pool: '🏊',
-    wellness: '💆', spa: '💆', gym: '🏋️', hair_salon: '💇', salon: '💇',
-    sports: '🎾', tennis: '🎾', shooting: '🎯',
-    family: '👶', kids: '👶', beach: '🏖️', outdoor: '🏖️',
-    services: '🛎️', concierge: '🛎️',
-    italian: '🍝', lebanese: '🥙', japanese: '🍣', snacks: '🍹',
-    water_sports: '🚤', jetski: '🚤', sup: '🏄', kayak: '🛶', snorkel: '🤿',
-    event: '🎉', jazz: '🎷', bbq: '🍖', wine: '🍷',
+    pool: 'pool', outdoor_pool: 'pool', indoor_pool: 'pool',
+    wellness: 'spa-outline', spa: 'spa-outline', gym: 'dumbbell',
+    hair_salon: 'content-cut', salon: 'content-cut',
+    sports: 'tennis', tennis: 'tennis', shooting: 'target',
+    family: 'human-male-female-child', kids: 'teddy-bear',
+    beach: 'beach', outdoor: 'beach',
+    services: 'bell-outline', concierge: 'bell-outline',
+    italian: 'pasta', lebanese: 'food-variant', japanese: 'fish',
+    snacks: 'glass-cocktail',
+    water_sports: 'sail-boat', jetski: 'sail-boat', sup: 'surfing',
+    kayak: 'kayaking', snorkel: 'swim',
+    event: 'party-popper', jazz: 'saxophone',
+    bbq: 'grill', wine: 'glass-wine',
   };
   const k = (category || '').toLowerCase();
   for (const key of Object.keys(map)) if (k.includes(key)) return map[key];
-  return '🏨';
+  return 'domain';
 }
