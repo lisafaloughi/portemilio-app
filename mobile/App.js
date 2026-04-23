@@ -136,7 +136,7 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const minDelay = new Promise(resolve => setTimeout(resolve, 2000));
+      const minDelay = new Promise(resolve => setTimeout(resolve, 1500));
       const loadAuth = (async () => {
         const token = await loadToken();
         if (token) {

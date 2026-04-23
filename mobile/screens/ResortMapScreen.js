@@ -53,7 +53,7 @@ const PINS = [
   { id: 'multi-sport', category: 'activities', name: 'Multi-Sport', icon: 'soccer', lat: 33.98236, lng: 35.61289 },
   { id: 'petanque', category: 'activities', name: 'Pétanque', icon: 'bowling', lat: 33.98223, lng: 35.61274 },
   { id: 'pilates', category: 'activities', name: 'Pilates', icon: 'yoga', lat: 33.98076, lng: 35.61419 },
-  { id: 'playground', category: 'activities', name: 'Playground', icon: 'teddy-bear', lat: 33.98226, lng: 35.61316 },
+  { id: 'playground', category: 'activities', name: 'Playground', icon: 'slide', lat: 33.98226, lng: 35.61316 },
   { id: 'gun-club', category: 'activities', name: 'Kaslik Gun Club', icon: 'target', lat: 33.98112, lng: 35.61411 },
   { id: 'gym', category: 'activities', name: 'Gym', icon: 'dumbbell', lat: 33.98189, lng: 35.61377 },
   { id: 'water-sports', category: 'activities', name: 'Water Sports', icon: 'sail-boat', lat: 33.98199, lng: 35.61211 },

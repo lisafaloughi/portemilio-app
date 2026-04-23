@@ -7,11 +7,24 @@ import {
   ImageBackground,
   StyleSheet,
   Dimensions,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius } from '../theme';
 import SideDrawer from '../components/SideDrawer';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { ServingFoodIcon } from '@hugeicons/core-free-icons';
+
+const PLAT_DU_JOUR = {
+  name: 'Mloukhiyeh',
+  origin: "Today's Lebanese specialty",
+  description:
+    'A traditional Lebanese stew of jute leaves slow-cooked with tender chicken, served over saffron rice with toasted vermicelli, raw onions and warm pita bread.',
+  price: '$18',
+  eta: '~30 min',
+};
 
 const { width } = Dimensions.get('window');
 const PADDING = 16;
@@ -182,10 +195,33 @@ function CarouselCard({ card, onPress }) {
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [platOpen, setPlatOpen] = useState(false);
 
   const goTo = (target) => {
     if (!target) return;
     navigation.navigate(target.name, target.params);
+  };
+
+  const confirmOrder = () => {
+    Alert.alert(
+      'Confirm your order',
+      `1 × ${PLAT_DU_JOUR.name} — ${PLAT_DU_JOUR.price}\nDelivered to your room`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: () => {
+            setPlatOpen(false);
+            setTimeout(() => {
+              Alert.alert(
+                'Order placed',
+                `Your ${PLAT_DU_JOUR.name} will arrive in about 30 minutes. Sahtein!`
+              );
+            }, 300);
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -246,11 +282,52 @@ export default function HomeScreen({ navigation }) {
       </ScrollView>
 
       <Pressable
-        style={[styles.fab, { bottom: insets.bottom + 90 }]}
-        onPress={() => navigation.navigate('FacilityDetail', { facilityKey: 'spa', title: 'Wellness' })}
+        style={[styles.platFab, { bottom: insets.bottom + 80 }]}
+        onPress={() => setPlatOpen(true)}
       >
-        <MaterialCommunityIcons name="spa-outline" size={26} color="#fff" />
+        <HugeiconsIcon icon={ServingFoodIcon} size={30} color="#fff" strokeWidth={1.6} />
       </Pressable>
+
+      <Modal
+        visible={platOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPlatOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setPlatOpen(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalEyebrow}>PLAT DU JOUR</Text>
+                <Text style={styles.modalTitle}>{PLAT_DU_JOUR.name}</Text>
+                <Text style={styles.modalSubtitle}>{PLAT_DU_JOUR.origin}</Text>
+              </View>
+              <Pressable onPress={() => setPlatOpen(false)} hitSlop={10} style={styles.modalClose}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalImagePlaceholder}>
+              <MaterialCommunityIcons name="pot-steam" size={64} color={colors.accent2} />
+            </View>
+
+            <Text style={styles.modalDescription}>{PLAT_DU_JOUR.description}</Text>
+
+            <View style={styles.modalMetaRow}>
+              <View style={styles.metaChip}>
+                <MaterialCommunityIcons name="clock-outline" size={14} color={colors.subtle} />
+                <Text style={styles.metaText}>{PLAT_DU_JOUR.eta}</Text>
+              </View>
+              <Text style={styles.modalPrice}>{PLAT_DU_JOUR.price}</Text>
+            </View>
+
+            <Pressable style={styles.orderBtn} onPress={confirmOrder}>
+              <MaterialCommunityIcons name="room-service-outline" size={18} color="#fff" />
+              <Text style={styles.orderBtnText}>Order to my room</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <SideDrawer
         visible={drawerOpen}
@@ -400,19 +477,115 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     width: 14,
   },
-  fab: {
+  platFab: {
     position: 'absolute',
     right: 20,
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: colors.accent2,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.accent2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  modalEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: colors.accent2,
+    marginBottom: 4,
+  },
+  modalTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.subtle,
+    marginTop: 2,
+  },
+  modalClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalImagePlaceholder: {
+    height: 140,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+  modalDescription: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.subtle,
+    marginTop: 16,
+  },
+  modalMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.bg,
+    borderRadius: 999,
+  },
+  metaText: {
+    fontSize: 12,
+    color: colors.subtle,
+    fontWeight: '600',
+  },
+  modalPrice: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  orderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 22,
+    paddingVertical: 16,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+  },
+  orderBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });
