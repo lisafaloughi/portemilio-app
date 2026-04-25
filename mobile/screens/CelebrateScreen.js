@@ -1,0 +1,270 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Image,
+  ImageBackground,
+  StyleSheet,
+  Linking,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, spacing, radius } from '../theme';
+import { EVENT_VENUES } from '../data/eventVenues';
+
+const HERO_HEIGHT = 280;
+const PHONE = '+9619123466';
+const HERO_IMAGES = [require('../assets/special-events.jpg')];
+
+const EVENTS = ['Weddings', 'Birthdays', 'Promposals', 'Private moments', 'And more...'];
+
+export default function CelebrateScreen({ navigation }) {
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  useEffect(() => {
+    if (HERO_IMAGES.length <= 1) return;
+    const id = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % HERO_IMAGES.length);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const callUs = () => Linking.openURL(`tel:${PHONE.replace(/\s+/g, '')}`);
+
+  return (
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+        <View style={styles.hero}>
+          {HERO_IMAGES.map((src, i) => (
+            <Image
+              key={i}
+              source={src}
+              style={[StyleSheet.absoluteFill, { opacity: i === heroIndex ? 1 : 0 }]}
+              resizeMode="cover"
+            />
+          ))}
+          <View style={styles.heroShade} />
+          <SafeAreaView edges={['top']} style={styles.heroSafe}>
+            <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+              <MaterialCommunityIcons name="arrow-left" size={20} color="#fff" />
+            </Pressable>
+          </SafeAreaView>
+          <View style={styles.heroBottom}>
+            <Text style={styles.heroTitle}>Celebrate Together</Text>
+            <Text style={styles.heroSubtitle}>Two venues. Endless reasons.</Text>
+          </View>
+        </View>
+
+        <View style={styles.body}>
+          <Text style={styles.lead}>
+            Whatever you're celebrating, we have a place for it.
+          </Text>
+
+          <Text style={styles.sectionLabel}>VENUES</Text>
+          {EVENT_VENUES.map(v => (
+            <Pressable
+              key={v.id}
+              style={({ pressed }) => [styles.venueCard, pressed && { opacity: 0.85 }]}
+              onPress={() => navigation.navigate('EventVenue', { id: v.id })}
+            >
+              <ImageBackground
+                source={v.image}
+                style={StyleSheet.absoluteFill}
+                imageStyle={{ borderRadius: radius.lg }}
+              >
+                <View style={styles.venueShade} />
+              </ImageBackground>
+              <View style={styles.venueContent}>
+                <Text style={styles.venueName}>{v.name}</Text>
+                <Text style={styles.venueTagline}>{v.specialty}</Text>
+                <View style={styles.capacityChip}>
+                  <MaterialCommunityIcons name="account-group-outline" size={13} color="#fff" />
+                  <Text style={styles.capacityText}>{v.capacity}</Text>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+
+          <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>EVENTS WE HOST</Text>
+          <View style={styles.chipsRow}>
+            {EVENTS.map(e => (
+              <View key={e} style={styles.chip}>
+                <Text style={styles.chipText}>{e}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.ctaCard}>
+            <Text style={styles.ctaTitle}>Anything to celebrate?</Text>
+            <Text style={styles.ctaBody}>
+              Tell us about your event — we've got you covered.
+            </Text>
+            <Pressable onPress={callUs} style={styles.ctaBtn}>
+              <MaterialCommunityIcons name="phone-outline" size={18} color="#fff" />
+              <Text style={styles.ctaBtnText}>Call us</Text>
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.surface },
+  hero: {
+    height: HERO_HEIGHT,
+    backgroundColor: colors.bg,
+    overflow: 'hidden',
+  },
+  heroShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  heroSafe: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroBottom: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 22,
+  },
+  heroTitle: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  body: {
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 60,
+  },
+  lead: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    letterSpacing: 1.3,
+    fontWeight: '700',
+    color: colors.accent,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  venueCard: {
+    height: 150,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: colors.bg,
+  },
+  venueShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.32)',
+  },
+  venueContent: {
+    flex: 1,
+    padding: 18,
+    justifyContent: 'flex-end',
+  },
+  venueName: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  venueTagline: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  capacityChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginTop: 10,
+  },
+  capacityText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.bg,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  chipText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  ctaCard: {
+    marginTop: spacing.xl,
+    padding: 22,
+    backgroundColor: colors.bg,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  ctaTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  ctaBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.subtle,
+    marginTop: 6,
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.accent,
+    paddingVertical: 14,
+    borderRadius: 999,
+    marginTop: 14,
+  },
+  ctaBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
+});

@@ -1,9 +1,9 @@
 import React from 'react';
 import VenueDetailPage from '../components/VenueDetailPage';
-import { venueById } from '../data/venues';
+import { eventVenueById } from '../data/eventVenues';
 
-export default function RestaurantDetailScreen({ navigation, route }) {
-  const venue = venueById(route?.params?.id);
+export default function EventVenueDetailScreen({ navigation, route }) {
+  const venue = eventVenueById(route?.params?.id);
 
   if (!venue) {
     return (
@@ -26,9 +26,6 @@ export default function RestaurantDetailScreen({ navigation, route }) {
       highlights={venue.highlights}
       address={venue.address}
       phone={venue.phone}
-      website={venue.website}
-      menuUrl={venue.menuUrl}
-      showMenuButton
       mapPinId={venue.mapPinId}
     />
   );

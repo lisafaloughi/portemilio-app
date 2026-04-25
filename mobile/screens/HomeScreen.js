@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,20 +9,29 @@ import {
   Dimensions,
   Modal,
   Alert,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius } from '../theme';
 import SideDrawer from '../components/SideDrawer';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { ServingFoodIcon } from '@hugeicons/core-free-icons';
+import { useCart } from '../App';
+import { api } from '../api';
+
+const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing']);
+const LIVE_BOOKING_STATUSES = new Set(['pending', 'confirmed']);
 
 const PLAT_DU_JOUR = {
+  id: 'plat-du-jour',
+  restaurant_id: 0,
   name: 'Mloukhiyeh',
   origin: "Today's Lebanese specialty",
   description:
     'A traditional Lebanese stew of jute leaves slow-cooked with tender chicken, served over saffron rice with toasted vermicelli, raw onions and warm pita bread.',
-  price: '$18',
+  price: 18,
   eta: '~30 min',
 };
 
@@ -45,15 +54,15 @@ const SECTIONS = [
     title: 'Our Hotel',
     rows: [
       [
-        { title: 'Rooms', image: require('../assets/rooms.jpg'), target: { name: 'Info' } },
-        { title: 'Front Desk', image: require('../assets/front-desk.jpg'), target: { name: 'Info' } },
+        { title: 'Rooms', image: require('../assets/rooms.jpg'), url: 'https://portemiliohotelandresort.bookingmystay.com' },
+        { title: 'Front Desk', image: require('../assets/front-desk.jpg'), target: { name: 'FrontDesk' } },
       ],
       [
-        { title: 'Portemilio Heritage', full: true, image: require('../assets/portemilio-heritage.jpg'), target: { name: 'Info' } },
+        { title: 'Portemilio Heritage', full: true, image: require('../assets/portemilio-heritage.jpg'), target: { name: 'Heritage' } },
       ],
       [
-        { title: 'Breakfast', image: require('../assets/breakfast.jpg'), target: { name: 'Info' } },
-        { title: 'Seaside Access', image: require('../assets/seaside-access.png'), target: { name: 'Category', params: { category: 'pool', title: 'Pools' } } },
+        { title: 'Breakfast', image: require('../assets/breakfast.jpg'), target: { name: 'Breakfast' } },
+        { title: 'Seaside Access', image: require('../assets/seaside-access.png'), target: { name: 'SeasideAccess' } },
       ],
     ],
   },
@@ -61,11 +70,11 @@ const SECTIONS = [
     title: 'Gastronomy',
     rows: [
       [
-        { title: 'Restaurants', full: true, image: require('../assets/restaurants.jpg'), target: { name: 'Restaurants' } },
+        { title: 'Restaurants & Bars', full: true, image: require('../assets/restaurants.jpg'), target: { name: 'Restaurants' } },
       ],
       [
-        { title: 'Bars', image: require('../assets/bars.jpg'), target: { name: 'Restaurants' } },
-        { title: 'Celebrate Together', image: require('../assets/special-events.jpg'), target: { name: 'Restaurants' } },
+        { title: 'Catering by Portemilio', image: require('../assets/bars.jpg'), target: { name: 'Restaurants', params: { filter: 'bars' } } },
+        { title: 'Celebrate Together', image: require('../assets/special-events.jpg'), target: { name: 'Celebrate' } },
       ],
     ],
   },
@@ -73,14 +82,14 @@ const SECTIONS = [
     title: 'Hotel Services',
     rows: [
       [
-        { title: 'Housekeeping', full: true, image: require('../assets/housekeeping.jpg'), target: { name: 'Info' } },
+        { title: 'Housekeeping', full: true, image: require('../assets/housekeeping.jpg'), target: { name: 'Housekeeping' } },
       ],
       [
-        { title: 'Wellness Area', image: require('../assets/wellness-area.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'spa', title: 'Wellness' } } },
-        { title: 'Room Service', image: require('../assets/room-service.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'kids_club', title: 'Kids Club' } } },
+        { title: 'Wellness Area', image: require('../assets/wellness-area.jpg'), target: { name: 'Wellness' } },
+        { title: 'Room Service', image: require('../assets/room-service.jpg'), target: { name: 'RoomService' } },
       ],
       [
-        { title: 'Comedy Theatre', full: true, image: require('../assets/comedy-theatre.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'gym', title: 'Gym' } } },
+        { title: 'Pools', full: true, image: require('../assets/pools.png'), target: { name: 'Pools' } },
       ],
     ],
   },
@@ -92,7 +101,8 @@ const SECTIONS = [
         { title: 'Kids Club', image: require('../assets/kids-activities.jpg'), target: { name: 'Events' } },
       ],
       [
-        { title: 'Pools', full: true, image: require('../assets/pools.png'), target: { name: 'Events' } },
+        { title: 'Comedy Show', full: true, image: require('../assets/comedy-theatre.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'gym', title: 'Gym' } } },
+
       ],
       [
         { title: 'Tennis', image: require('../assets/tennis.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'tennis', title: 'Tennis' } } },
@@ -101,18 +111,18 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Marina', // rendered title-less; acts as the standalone marina rectangle
+    title: 'By the Water', // rendered title-less; acts as the standalone marina rectangle
     rows: [
       [
-        { title: 'Explore The Marina', full: true, image: require('../assets/marina.png'), target: { name: 'Info' } },
+        { title: 'Marina Experience', full: true, image: require('../assets/marina.png'), target: { name: 'Info' } },
       ],
     ],
   },
   {
-    title: 'Destination',
+    title: 'Destinations',
     rows: [
       [
-        { title: 'Jounieh Guide', image: require('../assets/jounieh-guide.jpg'), target: { name: 'Info' } },
+        { title: 'Explore Landmarks', image: require('../assets/jounieh-guide.jpg'), target: { name: 'Info' } },
         { title: 'Get to the City', image: require('../assets/transport-to-the-city.png'), target: { name: 'Info' } },
       ],
     ],
@@ -196,32 +206,63 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [platOpen, setPlatOpen] = useState(false);
+  const [platQty, setPlatQty] = useState(1);
+  const [hasLiveRequests, setHasLiveRequests] = useState(false);
+  const { cart, addToCart } = useCart();
+  const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const [orders, bookings] = await Promise.all([
+          api.myDeliveries().catch(() => []),
+          api.myBookings().catch(() => []),
+        ]);
+        const live =
+          orders.some(o => LIVE_ORDER_STATUSES.has(o.status)) ||
+          bookings.some(b => LIVE_BOOKING_STATUSES.has(b.status));
+        setHasLiveRequests(live);
+      })();
+    }, [])
+  );
 
   const goTo = (target) => {
     if (!target) return;
     navigation.navigate(target.name, target.params);
   };
 
-  const confirmOrder = () => {
-    Alert.alert(
-      'Confirm your order',
-      `1 × ${PLAT_DU_JOUR.name} — ${PLAT_DU_JOUR.price}\nDelivered to your room`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => {
-            setPlatOpen(false);
-            setTimeout(() => {
-              Alert.alert(
-                'Order placed',
-                `Your ${PLAT_DU_JOUR.name} will arrive in about 30 minutes. Sahtein!`
-              );
-            }, 300);
-          },
-        },
-      ]
+  const handleCardPress = (card) => {
+    if (card.url) {
+      Linking.openURL(card.url).catch(() =>
+        Alert.alert('Unable to open link', 'Please try again later.')
+      );
+      return;
+    }
+    goTo(card.target);
+  };
+
+  const openPlat = () => {
+    setPlatQty(1);
+    setPlatOpen(true);
+  };
+
+  const handleAddToCart = () => {
+    addToCart(
+      {
+        id: PLAT_DU_JOUR.id,
+        restaurant_id: PLAT_DU_JOUR.restaurant_id,
+        name: PLAT_DU_JOUR.name,
+        price: PLAT_DU_JOUR.price,
+      },
+      platQty
     );
+    setPlatOpen(false);
+    setTimeout(() => {
+      Alert.alert(
+        'Added to cart',
+        `${platQty} × ${PLAT_DU_JOUR.name} added to your cart.`
+      );
+    }, 200);
   };
 
   return (
@@ -239,9 +280,19 @@ export default function HomeScreen({ navigation }) {
             <Pressable style={styles.headerBtn} onPress={() => setDrawerOpen(true)}>
               <MaterialCommunityIcons name="menu" size={20} color="#fff" />
             </Pressable>
-            <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Profile')}>
-              <MaterialCommunityIcons name="account-outline" size={20} color="#fff" />
-            </Pressable>
+            <View style={styles.heroTopRight}>
+              <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Cart')}>
+                <MaterialCommunityIcons name="cart-outline" size={20} color="#fff" />
+                {cartCount > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartCount}</Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Profile')}>
+                <MaterialCommunityIcons name="account-outline" size={20} color="#fff" />
+              </Pressable>
+            </View>
           </View>
           <View style={styles.heroTitleWrap}>
             <Text style={styles.heroTitle}>PORTEMILIO</Text>
@@ -252,7 +303,10 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.pillWrap}>
           <View style={styles.pillRow}>
             <Pressable style={styles.pillBtn} onPress={() => navigation.navigate('Info')}>
-              <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
+              <View>
+                <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
+                {hasLiveRequests && <View style={styles.liveDot} />}
+              </View>
               <Text style={styles.pillText}>Live Requests</Text>
             </Pressable>
             <View style={styles.pillDivider} />
@@ -270,9 +324,9 @@ export default function HomeScreen({ navigation }) {
               <View key={ri} style={styles.row}>
                 {row.map((card, ci) =>
                   'images' in card ? (
-                    <CarouselCard key={ci} card={card} onPress={() => goTo(card.target)} />
+                    <CarouselCard key={ci} card={card} onPress={() => handleCardPress(card)} />
                   ) : (
-                    <Card key={ci} card={card} onPress={() => goTo(card.target)} />
+                    <Card key={ci} card={card} onPress={() => handleCardPress(card)} />
                   )
                 )}
               </View>
@@ -283,9 +337,9 @@ export default function HomeScreen({ navigation }) {
 
       <Pressable
         style={[styles.platFab, { bottom: insets.bottom + 80 }]}
-        onPress={() => setPlatOpen(true)}
+        onPress={openPlat}
       >
-        <HugeiconsIcon icon={ServingFoodIcon} size={30} color="#fff" strokeWidth={1.6} />
+        <HugeiconsIcon icon={ServingFoodIcon} size={30} color={colors.accent} strokeWidth={1.6} />
       </Pressable>
 
       <Modal
@@ -318,12 +372,36 @@ export default function HomeScreen({ navigation }) {
                 <MaterialCommunityIcons name="clock-outline" size={14} color={colors.subtle} />
                 <Text style={styles.metaText}>{PLAT_DU_JOUR.eta}</Text>
               </View>
-              <Text style={styles.modalPrice}>{PLAT_DU_JOUR.price}</Text>
+              <View style={styles.priceGroup}>
+                <View style={styles.qtyStepper}>
+                  <Pressable
+                    onPress={() => setPlatQty(q => Math.max(1, q - 1))}
+                    style={[styles.qtyStepBtn, platQty <= 1 && styles.qtyStepBtnDisabled]}
+                    disabled={platQty <= 1}
+                    hitSlop={6}
+                  >
+                    <MaterialCommunityIcons
+                      name="minus"
+                      size={18}
+                      color={platQty <= 1 ? colors.muted : colors.accent}
+                    />
+                  </Pressable>
+                  <Text style={styles.qtyNum}>{platQty}</Text>
+                  <Pressable
+                    onPress={() => setPlatQty(q => q + 1)}
+                    style={styles.qtyStepBtn}
+                    hitSlop={6}
+                  >
+                    <MaterialCommunityIcons name="plus" size={18} color={colors.accent} />
+                  </Pressable>
+                </View>
+                <Text style={styles.modalPrice}>${(PLAT_DU_JOUR.price * platQty).toFixed(0)}</Text>
+              </View>
             </View>
 
-            <Pressable style={styles.orderBtn} onPress={confirmOrder}>
-              <MaterialCommunityIcons name="room-service-outline" size={18} color="#fff" />
-              <Text style={styles.orderBtnText}>Order to my room</Text>
+            <Pressable style={styles.orderBtn} onPress={handleAddToCart}>
+              <MaterialCommunityIcons name="cart-plus" size={18} color="#fff" />
+              <Text style={styles.orderBtnText}>Add to cart</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -360,6 +438,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heroTopRight: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: colors.accent2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   heroTitleWrap: {
     alignItems: 'center',
@@ -408,6 +509,17 @@ const styles = StyleSheet.create({
     width: 1,
     height: 22,
     backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  liveDot: {
+    position: 'absolute',
+    top: -2,
+    right: -3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.danger,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
   },
   section: {
     marginTop: 32,
@@ -485,7 +597,7 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.accent2,
+    backgroundColor: '#E8E1CB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -571,6 +683,36 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+  },
+  priceGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  qtyStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  qtyStepBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  qtyStepBtnDisabled: {
+    opacity: 0.5,
+  },
+  qtyNum: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    minWidth: 18,
+    textAlign: 'center',
   },
   orderBtn: {
     flexDirection: 'row',

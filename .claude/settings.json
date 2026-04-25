@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx expo *)",
       "Bash(kill 55814)",
-      "Bash(kill -9 55814)"
+      "Bash(kill -9 55814)",
+      "Bash(ipconfig getifaddr *)"
     ]
   }
 }

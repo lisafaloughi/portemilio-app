@@ -30,6 +30,16 @@ import OrderHistoryScreen from './screens/OrderHistoryScreen';
 import PaymentsScreen from './screens/PaymentsScreen';
 import InfoScreen from './screens/InfoScreen';
 import ResortMapScreen from './screens/ResortMapScreen';
+import FrontDeskScreen from './screens/FrontDeskScreen';
+import HeritageScreen from './screens/HeritageScreen';
+import BreakfastScreen from './screens/BreakfastScreen';
+import SeasideAccessScreen from './screens/SeasideAccessScreen';
+import HousekeepingScreen from './screens/HousekeepingScreen';
+import WellnessScreen from './screens/WellnessScreen';
+import RoomServiceScreen from './screens/RoomServiceScreen';
+import PoolsScreen from './screens/PoolsScreen';
+import CelebrateScreen from './screens/CelebrateScreen';
+import EventVenueDetailScreen from './screens/EventVenueDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -78,14 +88,24 @@ function AppStack() {
       <Stack.Screen name="Payments" component={PaymentsScreen} options={{ title: 'Payment methods' }} />
       <Stack.Screen name="Category" component={CategoryScreen} options={({ route }) => ({ title: route.params?.title || 'Category' })} />
       <Stack.Screen name="FacilityDetail" component={FacilityDetailScreen} options={({ route }) => ({ title: route.params?.title || 'Details' })} />
-      <Stack.Screen name="Restaurants" component={RestaurantsScreen} options={{ title: 'Restaurants' }} />
-      <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} options={({ route }) => ({ title: route.params?.title || 'Restaurant' })} />
+      <Stack.Screen name="Restaurants" component={RestaurantsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Celebrate" component={CelebrateScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="EventVenue" component={EventVenueDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Rentals" component={RentalsScreen} options={{ title: 'Rentals' }} />
       <Stack.Screen name="Events" component={EventsScreen} options={{ title: 'Events' }} />
       <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book' }} />
-      <Stack.Screen name="Cart" component={CartScreen} options={{ title: 'Your Cart' }} />
+      <Stack.Screen name="Cart" component={CartScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Info" component={InfoScreen} options={{ title: 'Live Requests' }} />
       <Stack.Screen name="ResortMap" component={ResortMapScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="FrontDesk" component={FrontDeskScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Heritage" component={HeritageScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Breakfast" component={BreakfastScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SeasideAccess" component={SeasideAccessScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Housekeeping" component={HousekeepingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Wellness" component={WellnessScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RoomService" component={RoomServiceScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Pools" component={PoolsScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -122,11 +142,11 @@ export default function App() {
     setCart([]);
   }, []);
 
-  const addToCart = useCallback((item) => {
+  const addToCart = useCallback((item, qty = 1) => {
     setCart(prev => {
       const existing = prev.find(p => p.id === item.id && p.restaurant_id === item.restaurant_id);
-      if (existing) return prev.map(p => p === existing ? { ...p, qty: p.qty + 1 } : p);
-      return [...prev, { ...item, qty: 1 }];
+      if (existing) return prev.map(p => p === existing ? { ...p, qty: p.qty + qty } : p);
+      return [...prev, { ...item, qty }];
     });
   }, []);
   const updateCart = useCallback((id, qty) => {

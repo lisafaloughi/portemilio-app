@@ -46,6 +46,7 @@ const PINS = [
   { id: 'sunset-bar', category: 'food', name: 'Sunset Bar', icon: 'glass-wine', note: 'Upcoming', lat: 33.98228, lng: 35.61239 },
   { id: 'khuans-bar', category: 'food', name: "Khuan's Bar", icon: 'glass-cocktail', lat: 33.98036, lng: 35.61395 },
   { id: 'fellini', category: 'food', name: 'Fellini', icon: 'pasta', lat: 33.98028, lng: 35.61416 },
+  { id: 'la-terrasse', category: 'food', name: 'La Terrasse', icon: 'silverware-fork-knife', lat: 33.98137, lng: 35.61217 },
 
   // Activities
   { id: 'tennis-1', category: 'activities', name: 'Tennis #1', icon: 'tennis', lat: 33.98203, lng: 35.61247 },
@@ -65,9 +66,9 @@ const PINS = [
   { id: 'fountain-pool', category: 'unwind', name: 'Fountain Pool', icon: 'fountain', lat: 33.98122, lng: 35.61250 },
   { id: 'beauty-salon', category: 'unwind', name: 'Beauty Salon', icon: 'content-cut', lat: 33.98098, lng: 35.61424 },
   { id: 'le-rodin-spa', category: 'unwind', name: 'Le Rodin Spa', icon: 'spa', lat: 33.98177, lng: 35.61411 },
-  { id: 'comedy-theatre', category: 'unwind', name: 'Comedy Theatre', icon: 'drama-masks', lat: 33.98146, lng: 35.61441 },
-  { id: 'iview-lounge', category: 'unwind', name: 'Iview Lounge', icon: 'sofa', lat: 33.98122, lng: 35.61214 },
-  { id: 'event-pavilion', category: 'unwind', name: 'Event Pavilion', icon: 'party-popper', lat: 33.98111, lng: 35.61222 },
+  { id: 'comedy-theatre', category: 'unwind', name: 'The Retro Theatre', icon: 'drama-masks', lat: 33.98146, lng: 35.61441 },
+  { id: 'iview', category: 'unwind', name: 'Iview', icon: 'sofa', lat: 33.98122, lng: 35.61214 },
+  { id: 'pavillion', category: 'unwind', name: 'Pavillion', icon: 'party-popper', lat: 33.98111, lng: 35.61222 },
 
   // Services
   { id: 'reception-chalet', category: 'services', name: 'Reception Chalet', icon: 'bell-outline', lat: 33.98101, lng: 35.61437 },
@@ -83,7 +84,7 @@ const PINS = [
   { id: 'convenient-store', category: 'other', name: 'Convenient Store', icon: 'store', lat: 33.98100, lng: 35.61417 },
 ];
 
-export default function ResortMapScreen({ navigation }) {
+export default function ResortMapScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
   const [tab, setTab] = useState(null);
@@ -107,6 +108,23 @@ export default function ResortMapScreen({ navigation }) {
       setExpanded(false);
     }
   }, [visiblePins, selectedId]);
+
+  useEffect(() => {
+    const pinId = route?.params?.pinId;
+    if (!pinId) return;
+    const pin = PINS.find(p => p.id === pinId);
+    if (!pin) return;
+    setTab(pin.category);
+    setSelectedId(pin.id);
+    setExpanded(false);
+    const t = setTimeout(() => {
+      mapRef.current?.animateCamera(
+        { center: { latitude: pin.lat, longitude: pin.lng } },
+        { duration: 500 }
+      );
+    }, 350);
+    return () => clearTimeout(t);
+  }, [route?.params?.pinId]);
 
   const centerOn = (pin) => {
     if (selectedId === pin.id) {
