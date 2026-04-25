@@ -105,8 +105,8 @@ const SECTIONS = [
 
       ],
       [
-        { title: 'Tennis', image: require('../assets/tennis.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'tennis', title: 'Tennis' } } },
-        { title: 'Water Sports', image: require('../assets/water-sports.jpg'), target: { name: 'Rentals' } },
+        { title: 'Tennis', image: require('../assets/tennis.jpg'), target: { name: 'Tennis' } },
+        { title: 'Water Sports', image: require('../assets/water-sports.jpg'), target: { name: 'WaterSports' } },
       ],
     ],
   },

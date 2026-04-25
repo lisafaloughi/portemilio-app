@@ -40,6 +40,12 @@ import RoomServiceScreen from './screens/RoomServiceScreen';
 import PoolsScreen from './screens/PoolsScreen';
 import CelebrateScreen from './screens/CelebrateScreen';
 import EventVenueDetailScreen from './screens/EventVenueDetailScreen';
+import TennisScreen from './screens/TennisScreen';
+import WaterSportsScreen from './screens/WaterSportsScreen';
+import SalonAntoinetteScreen from './screens/SalonAntoinetteScreen';
+import LeRodinScreen from './screens/LeRodinScreen';
+import SEArenityClubScreen from './screens/SEArenityClubScreen';
+import RovePilatesScreen from './screens/RovePilatesScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -92,6 +98,12 @@ function AppStack() {
       <Stack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Celebrate" component={CelebrateScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EventVenue" component={EventVenueDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Tennis" component={TennisScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="WaterSports" component={WaterSportsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SalonAntoinette" component={SalonAntoinetteScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeRodin" component={LeRodinScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SEArenityClub" component={SEArenityClubScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RovePilates" component={RovePilatesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Rentals" component={RentalsScreen} options={{ title: 'Rentals' }} />
       <Stack.Screen name="Events" component={EventsScreen} options={{ title: 'Events' }} />
       <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book' }} />

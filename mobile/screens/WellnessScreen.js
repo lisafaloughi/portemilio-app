@@ -1,8 +1,5 @@
 import React from 'react';
-import { Linking } from 'react-native';
 import CategoryPage from '../components/CategoryPage';
-
-const SPA_PHONE = '+9619123459';
 
 export default function WellnessScreen({ navigation }) {
   return (
@@ -10,19 +7,32 @@ export default function WellnessScreen({ navigation }) {
       navigation={navigation}
       title="Wellness"
       images={[require('../assets/wellness-area.jpg')]}
-      description="An indoor semi-Olympic pool, sauna, steam, gym, and a spa menu of treatments. Take the morning slow."
+      description="Spa, salon, gym, and pilates — wellness and relaxation under one roof."
       rows={[
-        { icon: 'clock-outline', title: 'Open', subtitle: '6:00 AM – 9:00 PM' },
-        { icon: 'map-marker-outline', title: 'Location', subtitle: 'Health Club · 2nd floor' },
         {
-          icon: 'phone-outline',
-          title: 'Book a treatment',
-          subtitle: SPA_PHONE,
-          onPress: () => Linking.openURL(`tel:${SPA_PHONE.replace(/\s+/g, '')}`),
+          icon: 'content-cut',
+          title: 'Salon Antoinette',
+          subtitle: 'Hair · Nails · Makeup',
+          onPress: () => navigation.navigate('SalonAntoinette'),
         },
-        { icon: 'pool', title: 'Indoor pool', subtitle: 'Semi-Olympic · heated year-round' },
-        { icon: 'fire', title: 'Sauna & steam', subtitle: 'Included with wellness access' },
-        { icon: 'dumbbell', title: 'Gym', subtitle: 'Cardio, weights, free classes' },
+        {
+          icon: 'spa-outline',
+          title: 'Le Rodin Spa',
+          subtitle: 'Massage · Body sculpting',
+          onPress: () => navigation.navigate('LeRodin'),
+        },
+        {
+          icon: 'dumbbell',
+          title: 'SEArenity Club',
+          subtitle: 'Gym · Classes · Personal training',
+          onPress: () => navigation.navigate('SEArenityClub'),
+        },
+        {
+          icon: 'yoga',
+          title: 'Rove Pilates',
+          subtitle: 'Group classes · Private sessions',
+          onPress: () => navigation.navigate('RovePilates'),
+        },
       ]}
     />
   );
