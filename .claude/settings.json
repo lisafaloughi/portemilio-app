@@ -4,7 +4,9 @@
       "Bash(npx expo *)",
       "Bash(kill 55814)",
       "Bash(kill -9 55814)",
-      "Bash(ipconfig getifaddr *)"
+      "Bash(ipconfig getifaddr *)",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" --max-time 4 http://10.29.129.98:4000/api/settings/welcome_message)",
+      "Bash(grep -n \"SideDrawer\\\\b\\\\|<View style={{ flex: 1, backgroundColor: colors.bg\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/HomeScreen.js)"
     ]
   }
 }

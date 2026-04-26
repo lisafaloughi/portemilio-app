@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,10 @@ import {
   Modal,
   Alert,
   Linking,
+  PanResponder,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -40,6 +44,8 @@ const PADDING = 16;
 const GAP = 10;
 const HALF_WIDTH = (width - PADDING * 2 - GAP) / 2;
 const HALF_HEIGHT = HALF_WIDTH / 0.95;
+const FULL_WIDTH = width - PADDING * 2;
+const FULL_HEIGHT = FULL_WIDTH / 2.2;
 
 const HERO_IMG = require('../assets/portemilio-home2.png');
 
@@ -47,6 +53,7 @@ const TODAYS_ACT_IMAGES = [
   require('../assets/todays-act-1.jpg'),
   require('../assets/todays-act-2.jpg'),
   require('../assets/todays-act-3.jpg'),
+  require('../assets/water-sports.jpg'),
 ];
 
 const SECTIONS = [
@@ -58,7 +65,7 @@ const SECTIONS = [
         { title: 'Front Desk', image: require('../assets/front-desk.jpg'), target: { name: 'FrontDesk' } },
       ],
       [
-        { title: 'Portemilio Heritage', full: true, image: require('../assets/portemilio-heritage.jpg'), target: { name: 'Heritage' } },
+        { title: 'Portemilio Heritage', full: true, image: require('../assets/portemilio_vintage.jpg'), target: { name: 'Heritage' } },
       ],
       [
         { title: 'Breakfast', image: require('../assets/breakfast.jpg'), target: { name: 'Breakfast' } },
@@ -73,7 +80,7 @@ const SECTIONS = [
         { title: 'Restaurants & Bars', full: true, image: require('../assets/restaurants.jpg'), target: { name: 'Restaurants' } },
       ],
       [
-        { title: 'Catering by Portemilio', image: require('../assets/bars.jpg'), target: { name: 'Restaurants', params: { filter: 'bars' } } },
+        { title: 'Catering by Portemilio', image: require('../assets/portemilio-catering.jpg'), target: { name: 'Catering' } },
         { title: 'Celebrate Together', image: require('../assets/special-events.jpg'), target: { name: 'Celebrate' } },
       ],
     ],
@@ -97,12 +104,32 @@ const SECTIONS = [
     title: 'Entertainment',
     rows: [
       [
-        { title: "Today's Activities", images: TODAYS_ACT_IMAGES, target: { name: 'Events' } },
-        { title: 'Kids Club', image: require('../assets/kids-activities.jpg'), target: { name: 'Events' } },
+        {
+          title: "Today's Activities",
+          images: TODAYS_ACT_IMAGES,
+          target: { name: 'TodaysActivitiesList' },
+        },
+        { title: 'Kids Club', image: require('../assets/kids-activities.jpg'), target: { name: 'KidsClub' } },
       ],
       [
-        { title: 'Comedy Show', full: true, image: require('../assets/comedy-theatre.jpg'), target: { name: 'FacilityDetail', params: { facilityKey: 'gym', title: 'Gym' } } },
-
+        {
+          title: "Tonight's Events",
+          full: true,
+          interval: 4000,
+          images: [
+            {
+              src: require('../assets/comedy-theatre.jpg'),
+              title: 'Comedy Evening',
+              subtitle: 'Every weekend · Fady Raidy live',
+            },
+            {
+              src: require('../assets/fifa.jpg'),
+              title: 'Match Day',
+              subtitle: 'Germany vs Spain · 2026 FIFA World Cup',
+            },
+          ],
+          target: { name: 'EventsList' },
+        },
       ],
       [
         { title: 'Tennis', image: require('../assets/tennis.jpg'), target: { name: 'Tennis' } },
@@ -114,7 +141,7 @@ const SECTIONS = [
     title: 'By the Water', // rendered title-less; acts as the standalone marina rectangle
     rows: [
       [
-        { title: 'Marina Experience', full: true, image: require('../assets/marina.png'), target: { name: 'Info' } },
+        { title: 'Marina Experience', full: true, image: require('../assets/marina.png'), target: { name: 'Marina' } },
       ],
     ],
   },
@@ -122,8 +149,8 @@ const SECTIONS = [
     title: 'Destinations',
     rows: [
       [
-        { title: 'Explore Landmarks', image: require('../assets/jounieh-guide.jpg'), target: { name: 'Info' } },
-        { title: 'Get to the City', image: require('../assets/transport-to-the-city.png'), target: { name: 'Info' } },
+        { title: 'Explore Landmarks', image: require('../assets/jounieh-guide.jpg'), target: { name: 'LandmarksList' } },
+        { title: 'Get to the City', image: require('../assets/transport-to-the-city.png'), target: { name: 'GetToCity' } },
       ],
     ],
   },
@@ -151,18 +178,29 @@ function CarouselCard({ card, onPress }) {
   const [index, setIndex] = useState(0);
   const scrollRef = useRef(null);
   const timerRef = useRef(null);
-  const images = card.images;
-  const len = images.length;
+
+  const items = card.images.map(img =>
+    img && typeof img === 'object' && 'src' in img ? img : { src: img }
+  );
+  const len = items.length;
+  const cardWidth = card.full ? FULL_WIDTH : HALF_WIDTH;
+  const cardHeight = card.full ? FULL_HEIGHT : HALF_HEIGHT;
+
+  const current = items[index] || items[0];
+  const displayTitle = current.title || card.title;
+  const displaySubtitle = current.subtitle;
+
+  const intervalMs = card.interval || 2000;
 
   const startTimer = () => {
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setIndex(prev => {
         const next = (prev + 1) % len;
-        scrollRef.current?.scrollTo({ x: next * HALF_WIDTH, animated: true });
+        scrollRef.current?.scrollTo({ x: next * cardWidth, animated: true });
         return next;
       });
-    }, 2000);
+    }, intervalMs);
   };
 
   useEffect(() => {
@@ -171,7 +209,7 @@ function CarouselCard({ card, onPress }) {
   }, [len]);
 
   return (
-    <View style={[styles.card, styles.cardHalf]}>
+    <View style={[styles.card, card.full ? styles.cardFull : styles.cardHalf]}>
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -179,22 +217,31 @@ function CarouselCard({ card, onPress }) {
         showsHorizontalScrollIndicator={false}
         onScrollBeginDrag={() => clearInterval(timerRef.current)}
         onMomentumScrollEnd={(e) => {
-          const i = Math.round(e.nativeEvent.contentOffset.x / HALF_WIDTH);
+          const i = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
           setIndex(i);
           startTimer();
         }}
       >
-        {images.map((src, i) => (
-          <Pressable key={i} onPress={onPress} style={{ width: HALF_WIDTH, height: HALF_HEIGHT }}>
-            <ImageBackground source={src} style={StyleSheet.absoluteFill}>
+        {items.map((item, i) => (
+          <Pressable key={i} onPress={onPress} style={{ width: cardWidth, height: cardHeight }}>
+            <ImageBackground source={item.src} style={StyleSheet.absoluteFill}>
               <View style={styles.cardOverlay} />
             </ImageBackground>
           </Pressable>
         ))}
       </ScrollView>
-      <Text style={[styles.cardTitle, styles.carouselTitle]}>{card.title}</Text>
-      <View style={styles.dots} pointerEvents="none">
-        {images.map((_, i) => (
+      {card.full ? (
+        <View style={styles.carouselFullText} pointerEvents="none">
+          <Text style={styles.carouselFullTitle}>{displayTitle}</Text>
+          {displaySubtitle ? (
+            <Text style={styles.carouselFullSubtitle}>{displaySubtitle}</Text>
+          ) : null}
+        </View>
+      ) : (
+        <Text style={[styles.cardTitle, styles.carouselTitle]}>{displayTitle}</Text>
+      )}
+      <View style={[styles.dots, card.full && styles.dotsFull]} pointerEvents="none">
+        {items.map((_, i) => (
           <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
         ))}
       </View>
@@ -208,8 +255,31 @@ export default function HomeScreen({ navigation }) {
   const [platOpen, setPlatOpen] = useState(false);
   const [platQty, setPlatQty] = useState(1);
   const [hasLiveRequests, setHasLiveRequests] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewDismissed, setReviewDismissed] = useState(false);
   const { cart, addToCart } = useCart();
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+
+  const startXRef = useRef(0);
+  const edgeSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponderCapture: (evt) => {
+          startXRef.current = evt.nativeEvent.pageX;
+          return false;
+        },
+        onMoveShouldSetPanResponder: (_, g) =>
+          startXRef.current < 28 &&
+          g.dx > 10 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderRelease: (_, g) => {
+          if (g.dx > 50) setDrawerOpen(true);
+        },
+      }),
+    []
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -246,6 +316,25 @@ export default function HomeScreen({ navigation }) {
     setPlatOpen(true);
   };
 
+  const openReview = (initialRating = 0) => {
+    setReviewRating(initialRating);
+    setReviewComment('');
+    setReviewOpen(true);
+  };
+
+  const submitReview = () => {
+    setReviewOpen(false);
+    setReviewDismissed(true);
+    setTimeout(() => {
+      Alert.alert('Thank you!', 'We appreciate your feedback.');
+    }, 200);
+  };
+
+  const closeReview = () => {
+    setReviewOpen(false);
+    setReviewDismissed(true);
+  };
+
   const handleAddToCart = () => {
     addToCart(
       {
@@ -266,10 +355,15 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      {...edgeSwipeResponder.panHandlers}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{
+          paddingBottom: (reviewDismissed ? 40 : 180) + insets.bottom,
+        }}
       >
         <ImageBackground
           source={HERO_IMG}
@@ -307,7 +401,7 @@ export default function HomeScreen({ navigation }) {
                 <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
                 {hasLiveRequests && <View style={styles.liveDot} />}
               </View>
-              <Text style={styles.pillText}>Live Requests</Text>
+              <Text style={styles.pillText}>Active Requests</Text>
             </Pressable>
             <View style={styles.pillDivider} />
             <Pressable style={styles.pillBtn} onPress={() => navigation.navigate('ResortMap')}>
@@ -335,8 +429,36 @@ export default function HomeScreen({ navigation }) {
         ))}
       </ScrollView>
 
+      {!reviewDismissed && (
+        <Pressable
+          style={[styles.reviewWidget, { paddingBottom: 22 + insets.bottom }]}
+          onPress={() => openReview(0)}
+        >
+          <Text style={styles.reviewWidgetTitle}>How's your stay going?</Text>
+          <View style={styles.reviewStarsRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable
+                key={n}
+                onPress={() => openReview(n)}
+                hitSlop={6}
+                style={styles.reviewStarBtn}
+              >
+                <MaterialCommunityIcons
+                  name="star"
+                  size={32}
+                  color={colors.border}
+                />
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      )}
+
       <Pressable
-        style={[styles.platFab, { bottom: insets.bottom + 80 }]}
+        style={[
+          styles.platFab,
+          { bottom: insets.bottom + (reviewDismissed ? 30 : 110) },
+        ]}
         onPress={openPlat}
       >
         <HugeiconsIcon icon={ServingFoodIcon} size={30} color={colors.accent} strokeWidth={1.6} />
@@ -361,9 +483,12 @@ export default function HomeScreen({ navigation }) {
               </Pressable>
             </View>
 
-            <View style={styles.modalImagePlaceholder}>
-              <MaterialCommunityIcons name="pot-steam" size={64} color={colors.accent2} />
-            </View>
+            <ImageBackground
+              source={require('../assets/mloukhiyeh.jpg')}
+              style={styles.modalImage}
+              imageStyle={{ borderRadius: radius.lg }}
+            />
+
 
             <Text style={styles.modalDescription}>{PLAT_DU_JOUR.description}</Text>
 
@@ -405,6 +530,78 @@ export default function HomeScreen({ navigation }) {
             </Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={reviewOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={closeReview}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={closeReview}>
+            <Pressable style={styles.reviewModalCard} onPress={() => {}}>
+              <View style={styles.reviewModalHeader}>
+                <View style={{ width: 34 }} />
+                <Text style={styles.reviewProgress}>Question 1 / 1</Text>
+                <Pressable onPress={closeReview} hitSlop={10} style={styles.modalClose}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.text} />
+                </Pressable>
+              </View>
+
+              <Text style={styles.reviewQuestion}>
+                How's your stay going? <Text style={styles.required}>*</Text>
+              </Text>
+
+              <View style={styles.reviewModalStarsRow}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Pressable
+                    key={n}
+                    onPress={() => setReviewRating(n)}
+                    hitSlop={6}
+                    style={styles.reviewModalStarBtn}
+                  >
+                    <MaterialCommunityIcons
+                      name="star"
+                      size={42}
+                      color={n <= reviewRating ? colors.accent2 : colors.border}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.reviewLabel}>Comment</Text>
+              <View style={styles.reviewInputWrap}>
+                <TextInput
+                  style={styles.reviewInput}
+                  placeholder="Type here..."
+                  placeholderTextColor={colors.muted}
+                  value={reviewComment}
+                  onChangeText={(t) => setReviewComment(t.slice(0, 250))}
+                  multiline
+                  maxLength={250}
+                />
+                <Text style={styles.reviewCounter}>
+                  {reviewComment.length} / 250
+                </Text>
+              </View>
+
+              <Pressable
+                style={[
+                  styles.reviewContinueBtn,
+                  reviewRating === 0 && styles.reviewContinueBtnDisabled,
+                ]}
+                onPress={submitReview}
+                disabled={reviewRating === 0}
+              >
+                <Text style={styles.reviewContinueText}>Continue</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <SideDrawer
@@ -570,13 +767,41 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
   },
+  carouselFullText: {
+    position: 'absolute',
+    top: 18,
+    left: 18,
+    right: 18,
+  },
+  carouselFullTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  carouselFullSubtitle: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
+    marginTop: 4,
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  dotsFull: {
+    bottom: 14,
+    left: undefined,
+    right: 16,
+    justifyContent: 'flex-end',
+  },
   dots: {
     position: 'absolute',
-    bottom: 10,
-    left: 0,
-    right: 0,
+    bottom: 12,
+    right: 14,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     gap: 5,
   },
   dot: {
@@ -645,12 +870,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalImagePlaceholder: {
-    height: 140,
+  modalImage: {
+    height: 180,
     borderRadius: radius.lg,
-    backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     marginTop: 18,
   },
   modalDescription: {
@@ -725,6 +948,112 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   orderBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  reviewWidget: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 22,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  reviewWidgetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  reviewStarsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  reviewStarBtn: {
+    padding: 2,
+  },
+  reviewModalCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+  },
+  reviewModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  reviewProgress: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  reviewQuestion: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 14,
+  },
+  required: {
+    color: colors.danger,
+  },
+  reviewModalStarsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
+  },
+  reviewModalStarBtn: {
+    padding: 2,
+  },
+  reviewLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  reviewInputWrap: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: 12,
+    minHeight: 110,
+  },
+  reviewInput: {
+    fontSize: 14,
+    color: colors.text,
+    minHeight: 70,
+    textAlignVertical: 'top',
+  },
+  reviewCounter: {
+    alignSelf: 'flex-end',
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 6,
+  },
+  reviewContinueBtn: {
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+  },
+  reviewContinueBtnDisabled: {
+    backgroundColor: '#A8C7D2',
+  },
+  reviewContinueText: {
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',

@@ -6,9 +6,9 @@ export default function HeritageScreen({ navigation }) {
     <CategoryPage
       navigation={navigation}
       title="Since 1996"
-      images={[require('../assets/portemilio-heritage.jpg')]}
+      images={[require('../assets/portemilio_vintage.jpg')]}
       description={
-        "For nearly three decades, Portemilio has been the chosen retreat of royalty, dignitaries, and Lebanon's most distinguished gatherings — a quiet tradition of refined hospitality on 50,000 m² of Mediterranean gardens."
+        "For three decades, Portemilio has been the chosen retreat of royalty, dignitaries, and Lebanon's most distinguished gatherings — a quiet tradition of refined hospitality on 50,000 m² of Mediterranean gardens."
       }
       rows={[
         {

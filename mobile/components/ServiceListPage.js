@@ -144,43 +144,25 @@ export default function ServiceListPage({
                 </View>
               ) : (
                 services.map(s => (
-                  <View
-                    key={s.id}
-                    style={[
-                      styles.serviceCard,
-                      s.items?.length ? styles.serviceCardTop : null,
-                    ]}
-                  >
+                  <View key={s.id} style={styles.serviceCard}>
                     {showImages ? (
                       <Image source={s.image} style={styles.serviceImage} />
                     ) : null}
                     <View
                       style={[
                         styles.serviceBody,
-                        !showImages && { paddingLeft: 16, paddingVertical: 16 },
-                        s.items?.length && { paddingVertical: 12 },
+                        !showImages && { paddingLeft: 16 },
                       ]}
                     >
                       <Text style={styles.serviceName}>{s.name}</Text>
                       {s.items?.length ? (
-                        <View style={styles.serviceItems}>
-                          {s.items.map((item, i) => (
-                            <Text key={i} style={styles.serviceItemText}>
-                              • {item}
-                            </Text>
-                          ))}
-                        </View>
+                        <Text style={styles.serviceItemsInline}>
+                          {s.items.join(' · ')}
+                        </Text>
                       ) : null}
                     </View>
                     {showPrices && s.price ? (
-                      <Text
-                        style={[
-                          styles.servicePrice,
-                          s.items?.length && { alignSelf: 'flex-start', paddingTop: 14 },
-                        ]}
-                      >
-                        {s.price}
-                      </Text>
+                      <Text style={styles.servicePrice}>{s.price}</Text>
                     ) : null}
                   </View>
                 ))
@@ -245,9 +227,15 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
     overflow: 'hidden', marginBottom: 10,
   },
-  serviceImage: { width: 76, height: 76 },
-  serviceBody: { flex: 1, paddingHorizontal: 14 },
+  serviceImage: { width: 76, height: 76, resizeMode: 'cover' },
+  serviceBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 12 },
   serviceName: { fontSize: 16, fontWeight: '700', color: colors.text },
+  serviceItemsInline: {
+    fontSize: 12,
+    color: colors.subtle,
+    lineHeight: 16,
+    marginTop: 4,
+  },
   servicePrice: {
     fontSize: 14, fontWeight: '700', color: colors.accent,
     paddingRight: 16,

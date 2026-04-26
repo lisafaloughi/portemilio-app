@@ -80,7 +80,9 @@ export default function CategoryPage({
                     onPress={row.onPress}
                     disabled={!row.onPress}
                   >
-                    {row.icon ? (
+                    {row.image ? (
+                      <Image source={row.image} style={styles.rowImage} />
+                    ) : row.icon ? (
                       <MaterialCommunityIcons
                         name={row.icon}
                         size={22}
@@ -187,6 +189,12 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
     marginLeft: spacing.md + 22 + 14,
+  },
+  rowImage: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.sm,
+    marginRight: 14,
   },
   rowTitle: {
     fontSize: 16,

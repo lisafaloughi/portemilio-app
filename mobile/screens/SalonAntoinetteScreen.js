@@ -6,7 +6,7 @@ const PLACEHOLDER = require('../assets/wellness-area.jpg');
 const SERVICES = [
   {
     id: 'hair',
-    name: 'Hair Services',
+    name: 'Hair Atelier',
     price: 'from $30',
     image: PLACEHOLDER,
     items: [
@@ -40,6 +40,18 @@ const SERVICES = [
       'Evening / Glam Makeup',
       'Bridal Makeup',
       'Event & Photoshoot Makeup',
+    ],
+  },
+  {
+    id: 'beauty',
+    name: 'Beauty Treatments',
+    price: 'from $35',
+    image: PLACEHOLDER,
+    items: [
+      'Facials (Hydrating, Deep Clean, Anti-Aging)',
+      'Eyebrow Shaping & Tinting',
+      'Lash Lifting & Extensions',
+      'Skin Treatments',
     ],
   },
 ];

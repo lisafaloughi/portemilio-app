@@ -66,7 +66,7 @@ const PINS = [
   { id: 'fountain-pool', category: 'unwind', name: 'Fountain Pool', icon: 'fountain', lat: 33.98122, lng: 35.61250 },
   { id: 'beauty-salon', category: 'unwind', name: 'Beauty Salon', icon: 'content-cut', lat: 33.98098, lng: 35.61424 },
   { id: 'le-rodin-spa', category: 'unwind', name: 'Le Rodin Spa', icon: 'spa', lat: 33.98177, lng: 35.61411 },
-  { id: 'comedy-theatre', category: 'unwind', name: 'The Retro Theatre', icon: 'drama-masks', lat: 33.98146, lng: 35.61441 },
+  { id: 'comedy-theatre', category: 'unwind', name: 'The Sheraka Retro Theatre', icon: 'drama-masks', lat: 33.98146, lng: 35.61441 },
   { id: 'iview', category: 'unwind', name: 'Iview', icon: 'sofa', lat: 33.98122, lng: 35.61214 },
   { id: 'pavillion', category: 'unwind', name: 'Pavillion', icon: 'party-popper', lat: 33.98111, lng: 35.61222 },
 

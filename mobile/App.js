@@ -46,6 +46,19 @@ import SalonAntoinetteScreen from './screens/SalonAntoinetteScreen';
 import LeRodinScreen from './screens/LeRodinScreen';
 import SEArenityClubScreen from './screens/SEArenityClubScreen';
 import RovePilatesScreen from './screens/RovePilatesScreen';
+import CateringScreen from './screens/CateringScreen';
+import KidsClubScreen from './screens/KidsClubScreen';
+import NurseryScreen from './screens/NurseryScreen';
+import EventsListScreen from './screens/EventsListScreen';
+import ComedyShowScreen from './screens/ComedyShowScreen';
+import MatchDayScreen from './screens/MatchDayScreen';
+import TodaysActivitiesListScreen from './screens/TodaysActivitiesListScreen';
+import GunClubScreen from './screens/GunClubScreen';
+import MarinaScreen from './screens/MarinaScreen';
+import MaritimeAcademyScreen from './screens/MaritimeAcademyScreen';
+import LandmarksListScreen from './screens/LandmarksListScreen';
+import LandmarkDetailScreen from './screens/LandmarkDetailScreen';
+import GetToCityScreen from './screens/GetToCityScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -104,6 +117,19 @@ function AppStack() {
       <Stack.Screen name="LeRodin" component={LeRodinScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SEArenityClub" component={SEArenityClubScreen} options={{ headerShown: false }} />
       <Stack.Screen name="RovePilates" component={RovePilatesScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Catering" component={CateringScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="KidsClub" component={KidsClubScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Nursery" component={NurseryScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="EventsList" component={EventsListScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ComedyShow" component={ComedyShowScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MatchDay" component={MatchDayScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="TodaysActivitiesList" component={TodaysActivitiesListScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="GunClub" component={GunClubScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Marina" component={MarinaScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MaritimeAcademy" component={MaritimeAcademyScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LandmarksList" component={LandmarksListScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LandmarkDetail" component={LandmarkDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="GetToCity" component={GetToCityScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Rentals" component={RentalsScreen} options={{ title: 'Rentals' }} />
       <Stack.Screen name="Events" component={EventsScreen} options={{ title: 'Events' }} />
       <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book' }} />

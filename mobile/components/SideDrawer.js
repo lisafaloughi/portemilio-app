@@ -7,7 +7,6 @@ import {
   Modal,
   Animated,
   Dimensions,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,7 +24,7 @@ const ITEMS = [
 
 export default function SideDrawer({ visible, onClose, navigation }) {
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -51,12 +50,6 @@ export default function SideDrawer({ visible, onClose, navigation }) {
     }, 220);
   };
 
-  const handleSignOut = () => {
-    Alert.alert('Sign out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => { onClose(); signOut(); } },
-    ]);
-  };
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -104,14 +97,6 @@ export default function SideDrawer({ visible, onClose, navigation }) {
           ))}
         </View>
 
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-          <Pressable
-            style={({ pressed }) => [styles.signOutBtn, pressed && { opacity: 0.85 }]}
-            onPress={handleSignOut}
-          >
-            <Text style={styles.signOutText}>Sign out</Text>
-          </Pressable>
-        </View>
       </Animated.View>
     </Modal>
   );
@@ -173,19 +158,4 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
   rowSubtitle: { fontSize: 13, color: colors.subtle, marginTop: 2 },
   chevron: { fontSize: 22, color: colors.muted },
-  footer: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  signOutBtn: {
-    backgroundColor: colors.bg,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  signOutText: { color: colors.danger, fontSize: 15, fontWeight: '700' },
 });

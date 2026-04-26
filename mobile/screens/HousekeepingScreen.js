@@ -20,6 +20,11 @@ export default function HousekeepingScreen({ navigation }) {
         },
         { icon: 'clock-outline', title: 'Available', subtitle: '24 hours' },
         { icon: 'broom', title: 'Daily room cleaning', subtitle: '9:00 AM – 3:00 PM' },
+        {
+          icon: 'tshirt-crew-outline',
+          title: 'Laundry request',
+          subtitle: 'Schedule a pickup via Request housekeeping',
+        },
       ]}
     />
   );
