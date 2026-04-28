@@ -20,6 +20,7 @@ export default function CategoryPage({
   subtitle,
   images = [],
   description,
+  descriptionStyle,
   rows = [],
   extra,
 }) {
@@ -73,7 +74,7 @@ export default function CategoryPage({
         </View>
 
         <View style={styles.body}>
-          {description ? <Text style={styles.description}>{description}</Text> : null}
+          {description ? <Text style={[styles.description, descriptionStyle]}>{description}</Text> : null}
           {extra ? <View style={{ marginTop: spacing.lg }}>{extra}</View> : null}
           {rows.length > 0 && (
             <View style={styles.rowsCard}>

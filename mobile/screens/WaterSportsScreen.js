@@ -20,11 +20,11 @@ const WS_PHONE = '+9619123468';
 
 const SPORTS = [
   { id: 'jet-ski', name: 'Jet ski', price: '$50 / 15 min', image: PLACEHOLDER_IMG },
-  { id: 'kayak', name: 'Kayak', price: '$20 / hr', image: PLACEHOLDER_IMG },
-  { id: 'rowboat', name: 'Rowboat', price: '$15 / hr', image: PLACEHOLDER_IMG },
-  { id: 'pedalo', name: 'Pedalo', price: '$20 / hr', image: PLACEHOLDER_IMG },
-  { id: 'water-skiing', name: 'Water skiing', price: '$40 / 15 min', image: PLACEHOLDER_IMG },
-  { id: 'scuba-diving', name: 'Scuba diving', price: '$80 / dive', image: PLACEHOLDER_IMG },
+  { id: 'kayak', name: 'Kayak', price: '$20 / hr', image: require('../assets/water-sports/kayak.png') },
+  { id: 'rowboat', name: 'Rowboat', price: '$15 / hr', image: require('../assets/water-sports/boatrow.png') },
+  { id: 'pedalo', name: 'Pedalo', price: '$20 / hr', image: require('../assets/water-sports/pedalo.png') },
+  { id: 'water-skiing', name: 'Water skiing', price: '$40 / 15 min', image: require('../assets/water-sports/waterskiing.png') },
+  { id: 'scuba-diving', name: 'Scuba diving', price: '$80 / dive', image: require('../assets/water-sports/scuba_diving.png') },
 ];
 
 export default function WaterSportsScreen({ navigation }) {

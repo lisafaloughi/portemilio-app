@@ -63,7 +63,15 @@ const SECTIONS = [
     title: 'Our Hotel',
     rows: [
       [
-        { title: 'Rooms', image: require('../assets/rooms.jpg'), url: 'https://portemiliohotelandresort.bookingmystay.com' },
+        {
+          title: 'Rooms',
+          images: [
+            require('../assets/rooms.jpg'),
+            require('../assets/room2.jpg'),
+            require('../assets/room3.jpg'),
+          ],
+          url: 'https://portemiliohotelandresort.bookingmystay.com',
+        },
         { title: 'Front Desk', image: require('../assets/front-desk.jpg'), target: { name: 'FrontDesk' } },
       ],
       [
@@ -82,8 +90,8 @@ const SECTIONS = [
         { title: 'Restaurants & Bars', full: true, image: require('../assets/restaurants.jpg'), target: { name: 'Restaurants' } },
       ],
       [
-        { title: 'Catering by Portemilio', image: require('../assets/portemilio-catering.jpg'), target: { name: 'Catering' } },
-        { title: 'Celebrate Together', image: require('../assets/special-events.jpg'), target: { name: 'Celebrate' } },
+        { title: 'Catering by Portemilio', image: require('../assets/special-events.jpg'), target: { name: 'Catering' } },
+        { title: 'Celebrate Together', image: require('../assets/celebrate_together.jpg'), target: { name: 'Celebrate' } },
       ],
     ],
   },
@@ -192,7 +200,7 @@ function CarouselCard({ card, onPress }) {
   const displayTitle = current.title || card.title;
   const displaySubtitle = current.subtitle;
 
-  const intervalMs = card.interval || 2000;
+  const intervalMs = card.interval || 3000;
 
   const startTimer = () => {
     clearInterval(timerRef.current);

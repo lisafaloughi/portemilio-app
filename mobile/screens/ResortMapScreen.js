@@ -153,7 +153,7 @@ const PIN_INFO = {
     hours: 'Daylight hours',
   },
   'gun-club': {
-    description: 'Outdoor shooting range. Trained instructors on site.',
+    description: 'Indoor shooting range. Trained instructors on site.',
     hours: 'By appointment',
   },
   'gym': {

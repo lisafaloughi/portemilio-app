@@ -16,7 +16,7 @@ const ACTIVITIES = [
     id: 'gun-club',
     type: 'Sports',
     name: 'Kaslik Gun Club',
-    subtitle: 'Outdoor shooting range',
+    subtitle: 'Indoor shooting range',
     image: require('../assets/todays-act-1.jpg'),
     target: 'GunClub',
   },

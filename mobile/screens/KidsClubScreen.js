@@ -14,7 +14,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const HERO_IMAGES = [require('../assets/kids-activities.jpg')];
+const HERO_IMAGES = [
+  require('../assets/kids-activities.jpg'),
+  require('../assets/kidsclub1.jpg'),
+];
 
 export default function KidsClubScreen({ navigation }) {
   const [index, setIndex] = useState(0);

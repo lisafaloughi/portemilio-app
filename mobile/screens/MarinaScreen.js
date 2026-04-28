@@ -8,6 +8,7 @@ import {
   ImageBackground,
   StyleSheet,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,23 +17,13 @@ import { colors, spacing, radius } from '../theme';
 const HERO_HEIGHT = Dimensions.get('window').width;
 const HERO_IMAGES = [require('../assets/marina.png')];
 const PLACEHOLDER = require('../assets/marina.png');
+const MARINA_PHONE = '+961 9 123 470';
 
 const FACILITIES = [
-  { id: 'docking', name: 'Boat docking', subtitle: 'Private and visitor slips', image: PLACEHOLDER },
-  {
-    id: 'tours',
-    name: 'Coastal tours',
-    subtitle: 'For couples & groups',
-    image: PLACEHOLDER,
-  },
-  { id: 'dining', name: 'Boat dining experiences', subtitle: 'Onboard meals at sea', image: PLACEHOLDER },
-  {
-    id: 'taxi',
-    name: 'Taxi boat service',
-    subtitle: 'To coastal restaurants',
-    image: PLACEHOLDER,
-  },
-
+  { id: 'docking', name: 'Boat docking', subtitle: 'Private and visitor slips' },
+  { id: 'tours', name: 'Coastal tours', subtitle: 'For couples & groups' },
+  { id: 'dining', name: 'Boat dining experiences', subtitle: 'Onboard meals at sea' },
+  { id: 'taxi', name: 'Taxi boat service', subtitle: 'To coastal restaurants' },
 ];
 
 export default function MarinaScreen({ navigation }) {
@@ -82,19 +73,30 @@ export default function MarinaScreen({ navigation }) {
             Explore the marina — docking, coastal tours, dining at sea, and certified cruise training.
           </Text>
 
-          <Pressable
-            style={styles.actionBtn}
-            onPress={() => navigation.navigate('ResortMap', { pinId: 'marina' })}
-          >
-            <MaterialCommunityIcons name="map-marker-outline" size={16} color="#fff" />
-            <Text style={styles.actionBtnText}>View on map</Text>
-          </Pressable>
+          <View style={styles.actionRow}>
+            <Pressable
+              style={styles.actionBtn}
+              onPress={() =>
+                Linking.openURL(`tel:${MARINA_PHONE.replace(/\s+/g, '')}`)
+              }
+            >
+              <MaterialCommunityIcons name="phone-outline" size={16} color="#fff" />
+              <Text style={styles.actionBtnText}>Call for info</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtn, styles.actionBtnAlt]}
+              onPress={() => navigation.navigate('ResortMap', { pinId: 'marina' })}
+            >
+              <MaterialCommunityIcons name="map-marker-outline" size={16} color={colors.text} />
+              <Text style={[styles.actionBtnText, { color: colors.text }]}>View on map</Text>
+            </Pressable>
+          </View>
 
           <Text style={styles.sectionLabel}>EXPLORE THE MARINA</Text>
           {FACILITIES.map(f => (
-            <View key={f.id} style={styles.serviceCard}>
-              <Image source={f.image} style={styles.serviceImage} />
-              <View style={styles.serviceBody}>
+            <View key={f.id} style={styles.serviceRow}>
+              <View style={styles.serviceBullet} />
+              <View style={{ flex: 1 }}>
                 <Text style={styles.serviceName}>{f.name}</Text>
                 {f.subtitle ? (
                   <Text style={styles.serviceSubtitle}>{f.subtitle}</Text>
@@ -150,7 +152,13 @@ const styles = StyleSheet.create({
   heroTitle: { color: '#fff', fontSize: 22, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   body: { paddingHorizontal: 22, paddingTop: 24 },
   lead: { fontSize: 15, lineHeight: 22, color: colors.text },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: spacing.lg,
+  },
   actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -158,7 +166,11 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     backgroundColor: colors.accent,
     borderRadius: 999,
-    marginTop: spacing.lg,
+  },
+  actionBtnAlt: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   actionBtnText: {
     color: '#fff', fontSize: 14, fontWeight: '700', letterSpacing: 0.2,
@@ -168,15 +180,21 @@ const styles = StyleSheet.create({
     color: colors.accent,
     marginTop: spacing.xl, marginBottom: spacing.sm,
   },
-  serviceCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
-    overflow: 'hidden', marginBottom: 10,
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  serviceImage: { width: 76, height: 76, resizeMode: 'cover' },
-  serviceBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  serviceBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+    marginTop: 8,
+    marginRight: 14,
+  },
   serviceName: { fontSize: 16, fontWeight: '700', color: colors.text },
   serviceSubtitle: { fontSize: 13, color: colors.subtle, marginTop: 4 },
   extraCard: {

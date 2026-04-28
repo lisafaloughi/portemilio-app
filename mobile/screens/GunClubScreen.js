@@ -10,7 +10,7 @@ export default function GunClubScreen({ navigation }) {
       navigation={navigation}
       title="Kaslik Gun Club"
       images={[require('../assets/todays-act-1.jpg')]}
-      description="Outdoor shooting range with guided sessions for beginners and experienced shooters alike. Safety briefing always included."
+      description="Indoor shooting range with guided sessions for beginners and experienced shooters alike. Safety briefing always included."
       rows={[
         { icon: 'clock-outline', title: 'Hours', subtitle: '9:00 AM – 6:00 PM' },
         {

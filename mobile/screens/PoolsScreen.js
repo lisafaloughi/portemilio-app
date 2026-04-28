@@ -99,7 +99,7 @@ export default function PoolsScreen({ navigation }) {
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Towel rentals</Text>
-                <Text style={styles.rowSubtitle}>Available nearthe Pool Bar</Text>
+                <Text style={styles.rowSubtitle}>Available near the Pool Bar</Text>
               </View>
             </View>
           </View>
