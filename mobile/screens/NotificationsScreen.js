@@ -4,18 +4,34 @@ import { useFocusEffect } from '@react-navigation/native';
 import { HeaderScreen, Card, Loading } from '../components/ui';
 import { spacing, font } from '../theme';
 import { api } from '../api';
+import { useAuth } from '../App';
 
 export default function NotificationsScreen({ navigation }) {
+  const { isGuest } = useAuth();
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isGuest);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => api.myNotifications().then(r => {
-    setItems(r);
-    setLoading(false);
-    setRefreshing(false);
-  }), []);
-  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
+  const load = useCallback(() => {
+    if (isGuest) {
+      setItems([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    api.myNotifications()
+      .then(r => setItems(r))
+      .catch(() => setItems([]))
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }, [isGuest]);
+
+  useFocusEffect(useCallback(() => {
+    if (!isGuest) setLoading(true);
+    load();
+  }, [load, isGuest]));
 
   const onRefresh = () => { setRefreshing(true); load(); };
 

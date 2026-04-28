@@ -22,8 +22,10 @@ import { colors, radius } from '../theme';
 import SideDrawer from '../components/SideDrawer';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { ServingFoodIcon } from '@hugeicons/core-free-icons';
-import { useCart } from '../App';
+import { useCart, useAuth } from '../App';
 import { api } from '../api';
+
+const HOTEL_PHONE = '+9619636000';
 
 const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing']);
 const LIVE_BOOKING_STATUSES = new Set(['pending', 'confirmed']);
@@ -68,7 +70,7 @@ const SECTIONS = [
         { title: 'Portemilio Heritage', full: true, image: require('../assets/portemilio_vintage.jpg'), target: { name: 'Heritage' } },
       ],
       [
-        { title: 'Breakfast', image: require('../assets/breakfast.jpg'), target: { name: 'Breakfast' } },
+        { title: 'Breakfast', image: require('../assets/breakfast.jpg'), target: { name: 'RestaurantDetail', params: { id: 'fellinis', title: "Fellini's" } } },
         { title: 'Seaside Access', image: require('../assets/seaside-access.png'), target: { name: 'SeasideAccess' } },
       ],
     ],
@@ -260,6 +262,7 @@ export default function HomeScreen({ navigation }) {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewDismissed, setReviewDismissed] = useState(false);
   const { cart, addToCart } = useCart();
+  const { isGuest, signOut } = useAuth();
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
 
   const startXRef = useRef(0);
@@ -375,16 +378,25 @@ export default function HomeScreen({ navigation }) {
               <MaterialCommunityIcons name="menu" size={20} color="#fff" />
             </Pressable>
             <View style={styles.heroTopRight}>
-              <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Cart')}>
-                <MaterialCommunityIcons name="cart-outline" size={20} color="#fff" />
-                {cartCount > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{cartCount}</Text>
-                  </View>
-                )}
-              </Pressable>
-              <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Profile')}>
-                <MaterialCommunityIcons name="account-outline" size={20} color="#fff" />
+              {!isGuest && (
+                <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Cart')}>
+                  <MaterialCommunityIcons name="cart-outline" size={20} color="#fff" />
+                  {cartCount > 0 && (
+                    <View style={styles.cartBadge}>
+                      <Text style={styles.cartBadgeText}>{cartCount}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+              <Pressable
+                style={styles.headerBtn}
+                onPress={() => (isGuest ? signOut() : navigation.navigate('Profile'))}
+              >
+                <MaterialCommunityIcons
+                  name={isGuest ? 'login' : 'account-outline'}
+                  size={20}
+                  color="#fff"
+                />
               </Pressable>
             </View>
           </View>
@@ -396,12 +408,21 @@ export default function HomeScreen({ navigation }) {
 
         <View style={styles.pillWrap}>
           <View style={styles.pillRow}>
-            <Pressable style={styles.pillBtn} onPress={() => navigation.navigate('Info')}>
+            <Pressable
+              style={styles.pillBtn}
+              onPress={() => navigation.navigate(isGuest ? 'ContactUs' : 'Info')}
+            >
               <View>
-                <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#fff" />
-                {hasLiveRequests && <View style={styles.liveDot} />}
+                <MaterialCommunityIcons
+                  name={isGuest ? 'phone-outline' : 'bell-ring-outline'}
+                  size={18}
+                  color="#fff"
+                />
+                {!isGuest && hasLiveRequests && <View style={styles.liveDot} />}
               </View>
-              <Text style={styles.pillText}>Active Requests</Text>
+              <Text style={styles.pillText}>
+                {isGuest ? 'Contact us' : 'Active Requests'}
+              </Text>
             </Pressable>
             <View style={styles.pillDivider} />
             <Pressable style={styles.pillBtn} onPress={() => navigation.navigate('ResortMap')}>
@@ -497,37 +518,55 @@ export default function HomeScreen({ navigation }) {
                 <MaterialCommunityIcons name="clock-outline" size={14} color={colors.subtle} />
                 <Text style={styles.metaText}>{PLAT_DU_JOUR.eta}</Text>
               </View>
-              <View style={styles.priceGroup}>
-                <View style={styles.qtyStepper}>
-                  <Pressable
-                    onPress={() => setPlatQty(q => Math.max(1, q - 1))}
-                    style={[styles.qtyStepBtn, platQty <= 1 && styles.qtyStepBtnDisabled]}
-                    disabled={platQty <= 1}
-                    hitSlop={6}
-                  >
-                    <MaterialCommunityIcons
-                      name="minus"
-                      size={18}
-                      color={platQty <= 1 ? colors.muted : colors.accent}
-                    />
-                  </Pressable>
-                  <Text style={styles.qtyNum}>{platQty}</Text>
-                  <Pressable
-                    onPress={() => setPlatQty(q => q + 1)}
-                    style={styles.qtyStepBtn}
-                    hitSlop={6}
-                  >
-                    <MaterialCommunityIcons name="plus" size={18} color={colors.accent} />
-                  </Pressable>
+              {isGuest ? (
+                <Text style={styles.modalPrice}>${PLAT_DU_JOUR.price}</Text>
+              ) : (
+                <View style={styles.priceGroup}>
+                  <View style={styles.qtyStepper}>
+                    <Pressable
+                      onPress={() => setPlatQty(q => Math.max(1, q - 1))}
+                      style={[styles.qtyStepBtn, platQty <= 1 && styles.qtyStepBtnDisabled]}
+                      disabled={platQty <= 1}
+                      hitSlop={6}
+                    >
+                      <MaterialCommunityIcons
+                        name="minus"
+                        size={18}
+                        color={platQty <= 1 ? colors.muted : colors.accent}
+                      />
+                    </Pressable>
+                    <Text style={styles.qtyNum}>{platQty}</Text>
+                    <Pressable
+                      onPress={() => setPlatQty(q => q + 1)}
+                      style={styles.qtyStepBtn}
+                      hitSlop={6}
+                    >
+                      <MaterialCommunityIcons name="plus" size={18} color={colors.accent} />
+                    </Pressable>
+                  </View>
+                  <Text style={styles.modalPrice}>${(PLAT_DU_JOUR.price * platQty).toFixed(0)}</Text>
                 </View>
-                <Text style={styles.modalPrice}>${(PLAT_DU_JOUR.price * platQty).toFixed(0)}</Text>
-              </View>
+              )}
             </View>
 
-            <Pressable style={styles.orderBtn} onPress={handleAddToCart}>
-              <MaterialCommunityIcons name="cart-plus" size={18} color="#fff" />
-              <Text style={styles.orderBtnText}>Add to cart</Text>
-            </Pressable>
+            {isGuest ? (
+              <Pressable
+                style={styles.orderBtn}
+                onPress={() =>
+                  Linking.openURL(`tel:${HOTEL_PHONE}`).catch(() =>
+                    Alert.alert('Unable to call', 'Please dial the front desk directly.')
+                  )
+                }
+              >
+                <MaterialCommunityIcons name="phone-outline" size={18} color="#fff" />
+                <Text style={styles.orderBtnText}>Call to order</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.orderBtn} onPress={handleAddToCart}>
+                <MaterialCommunityIcons name="cart-plus" size={18} color="#fff" />
+                <Text style={styles.orderBtnText}>Add to cart</Text>
+              </Pressable>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -546,7 +585,7 @@ export default function HomeScreen({ navigation }) {
             <Pressable style={styles.reviewModalCard} onPress={() => {}}>
               <View style={styles.reviewModalHeader}>
                 <View style={{ width: 34 }} />
-                <Text style={styles.reviewProgress}>Question 1 / 1</Text>
+                <Text style={styles.reviewProgress}>We Value Your Feedback</Text>
                 <Pressable onPress={closeReview} hitSlop={10} style={styles.modalClose}>
                   <MaterialCommunityIcons name="close" size={20} color={colors.text} />
                 </Pressable>

@@ -9,7 +9,7 @@ export default function MatchDayScreen({ navigation }) {
     <CategoryPage
       navigation={navigation}
       title="Match Day"
-      images={[require('../assets/special-events.jpg')]}
+      images={[require('../assets/fifa.jpg')]}
       description="Germany vs Spain · 2026 FIFA World Cup. Wear your team's colors and bring the noise — we're screening it live at the Pool Bar. Tables fill up fast, book yours before kickoff."
       rows={[
         {

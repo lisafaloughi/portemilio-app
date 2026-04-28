@@ -46,6 +46,8 @@ export default function SideDrawer({ visible, onClose, navigation }) {
     onClose();
     setTimeout(() => {
       if (key === 'notifications') navigation.navigate('Notifications');
+      else if (key === 'legal') navigation.navigate('Legal');
+      else if (key === 'language') navigation.navigate('Language');
       else navigation.navigate('Info');
     }, 220);
   };

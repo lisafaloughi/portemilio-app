@@ -8,12 +8,13 @@ import {
   StyleSheet,
   Linking,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 
-const HERO_HEIGHT = 320;
+const HERO_HEIGHT = Dimensions.get('window').width;
 const HERO_IMAGES = [require('../assets/tennis.jpg')];
 const COURT_PHONE = '+9619123467';
 const SESSION_PRICE = 15;
@@ -42,7 +43,7 @@ export default function TennisScreen({ navigation }) {
     if (HERO_IMAGES.length <= 1) return;
     const id = setInterval(() => {
       setIndex(prev => (prev + 1) % HERO_IMAGES.length);
-    }, 1000);
+    }, 4000);
     return () => clearInterval(id);
   }, []);
 
@@ -60,12 +61,16 @@ export default function TennisScreen({ navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={styles.hero}>
           {HERO_IMAGES.map((src, i) => (
-            <Image
+            <View
               key={i}
-              source={src}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
-              resizeMode="cover"
-            />
+            >
+              <Image
+                source={src}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            </View>
           ))}
           <View style={styles.heroShade} />
           <SafeAreaView edges={['top']} style={styles.heroSafe}>
@@ -162,7 +167,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroBottom: { position: 'absolute', left: 20, right: 20, bottom: 22 },
-  heroTitle: { color: '#fff', fontSize: 30, fontWeight: '700' },
+  heroTitle: { color: '#fff', fontSize: 22, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   body: { paddingHorizontal: 22, paddingTop: 24 },
   description: { fontSize: 15, lineHeight: 22, color: colors.text },
   sectionLabel: {

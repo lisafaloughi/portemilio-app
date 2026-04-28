@@ -8,12 +8,13 @@ import {
   StyleSheet,
   Linking,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing } from '../theme';
 
-const HERO_HEIGHT = 320;
+const HERO_HEIGHT = Dimensions.get('window').width;
 
 export default function VenueDetailPage({
   navigation,
@@ -35,7 +36,7 @@ export default function VenueDetailPage({
     if (images.length <= 1) return;
     const id = setInterval(() => {
       setIndex(prev => (prev + 1) % images.length);
-    }, 1000);
+    }, 4000);
     return () => clearInterval(id);
   }, [images.length]);
 
@@ -59,14 +60,17 @@ export default function VenueDetailPage({
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
         <View style={styles.hero}>
           {images.map((src, i) => (
-            <Image
+            <View
               key={i}
-              source={src}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
-              resizeMode="cover"
-            />
+            >
+              <Image
+                source={src}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            </View>
           ))}
-          <View style={styles.heroShade} />
           <SafeAreaView edges={['top']} style={styles.heroSafe}>
             <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
               <MaterialCommunityIcons name="arrow-left" size={20} color="#fff" />
@@ -76,7 +80,7 @@ export default function VenueDetailPage({
             <Text style={styles.heroTitle}>{title}</Text>
             {subtitle ? <Text style={styles.heroSubtitle}>{subtitle}</Text> : null}
             {images.length > 1 && (
-              <View style={styles.dots}>
+              <View style={styles.dotsRow}>
                 {images.map((_, i) => (
                   <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
                 ))}
@@ -178,12 +182,8 @@ const styles = StyleSheet.create({
   },
   hero: {
     height: HERO_HEIGHT,
-    backgroundColor: colors.bg,
+    backgroundColor: '#1a1a1a',
     overflow: 'hidden',
-  },
-  heroShade: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.22)',
   },
   heroSafe: {
     paddingHorizontal: 16,
@@ -193,27 +193,33 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroBottom: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    left: 22,
+    right: 22,
     bottom: 22,
   },
   heroTitle: {
     color: '#fff',
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   heroSubtitle: {
-    color: 'rgba(255,255,255,0.92)',
+    color: 'rgba(255,255,255,0.95)',
     fontSize: 14,
     marginTop: 4,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  dots: {
+  dotsRow: {
     flexDirection: 'row',
     gap: 5,
     marginTop: 10,
@@ -222,7 +228,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   dotActive: {
     width: 14,

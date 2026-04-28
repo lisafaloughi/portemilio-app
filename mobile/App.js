@@ -59,6 +59,9 @@ import MaritimeAcademyScreen from './screens/MaritimeAcademyScreen';
 import LandmarksListScreen from './screens/LandmarksListScreen';
 import LandmarkDetailScreen from './screens/LandmarkDetailScreen';
 import GetToCityScreen from './screens/GetToCityScreen';
+import ContactUsScreen from './screens/ContactUsScreen';
+import LegalScreen from './screens/LegalScreen';
+import LanguageScreen from './screens/LanguageScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -135,6 +138,9 @@ function AppStack() {
       <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book' }} />
       <Stack.Screen name="Cart" component={CartScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Info" component={InfoScreen} options={{ title: 'Live Requests' }} />
+      <Stack.Screen name="ContactUs" component={ContactUsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Language" component={LanguageScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ResortMap" component={ResortMapScreen} options={{ headerShown: false }} />
       <Stack.Screen name="FrontDesk" component={FrontDeskScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Heritage" component={HeritageScreen} options={{ headerShown: false }} />
@@ -172,6 +178,10 @@ export default function App() {
         if (push) await api.updateMe({ push_token: push });
       } catch {}
     })();
+  }, []);
+
+  const signInAsGuest = useCallback(() => {
+    setUser({ is_guest: true, name: 'Guest' });
   }, []);
 
   const signOut = useCallback(async () => {
@@ -224,7 +234,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AuthCtx.Provider value={{ user, setUser, signIn, signOut }}>
+      <AuthCtx.Provider value={{ user, setUser, signIn, signInAsGuest, signOut, isGuest: !!user?.is_guest }}>
         <CartCtx.Provider value={{ cart, addToCart, updateCart, clearCart }}>
           <StatusBar style="light" />
           <NavigationContainer>

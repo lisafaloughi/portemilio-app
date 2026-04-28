@@ -6,7 +6,9 @@
       "Bash(kill -9 55814)",
       "Bash(ipconfig getifaddr *)",
       "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" --max-time 4 http://10.29.129.98:4000/api/settings/welcome_message)",
-      "Bash(grep -n \"SideDrawer\\\\b\\\\|<View style={{ flex: 1, backgroundColor: colors.bg\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/HomeScreen.js)"
+      "Bash(grep -n \"SideDrawer\\\\b\\\\|<View style={{ flex: 1, backgroundColor: colors.bg\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/HomeScreen.js)",
+      "Bash(grep -B2 -A5 \"absoluteFill, { opacity\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/PoolsScreen.js)",
+      "Bash(grep -nE \"HERO_HEIGHT|setInterval|absoluteFill, \\\\{ opacity|fontSize: 30|fontSize: 28\" /Users/lisafaloughi/Desktop/Portemilio/mobile/components/ServiceListPage.js)"
     ]
   }
 }

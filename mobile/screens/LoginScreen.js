@@ -1,41 +1,109 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Image,
+  Animated,
+  Dimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, ErrorText } from '../components/ui';
 import { colors, spacing, radius, font } from '../theme';
 import { api } from '../api';
 import { useAuth } from '../App';
 
+const SPLASH_BG = '#E8E1CB';
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 export default function LoginScreen({ navigation }) {
-  const { signIn } = useAuth();
+  const { signIn, signInAsGuest } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const logoTranslate = useRef(new Animated.Value(SCREEN_HEIGHT * 0.25)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formTranslate = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(logoTranslate, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.parallel([
+        Animated.timing(formOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(formTranslate, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [logoTranslate, formOpacity, formTranslate]);
+
   const submit = async () => {
-    if (!email || !password) { setErr('Enter email and password.'); return; }
-    setLoading(true); setErr('');
+    if (!email || !password) {
+      setErr('Enter email and password.');
+      return;
+    }
+    setLoading(true);
+    setErr('');
     try {
       const { token, user } = await api.login(email.trim().toLowerCase(), password);
       await signIn(token, user);
-    } catch (e) { setErr(e.message); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.accent }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={{ flex: 1, justifyContent: 'center', padding: spacing.xl }}>
-          <Text style={styles.brand}>PORTEMILIO</Text>
-          <Text style={styles.sub}>Kaslik · Lebanon</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: SPLASH_BG }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.container}>
+          <Animated.View
+            style={[
+              styles.logoWrap,
+              { transform: [{ translateY: logoTranslate }] },
+            ]}
+          >
+            <Image
+              source={require('../assets/splash.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </Animated.View>
 
-          <View style={styles.card}>
-            <Text style={{ ...font.h2, marginBottom: spacing.lg }}>Welcome back</Text>
+          <Animated.View
+            style={[
+              styles.formWrap,
+              {
+                opacity: formOpacity,
+                transform: [{ translateY: formTranslate }],
+              },
+            ]}
+          >
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
               placeholder="you@email.com"
+              placeholderTextColor={colors.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               value={email}
@@ -45,20 +113,35 @@ export default function LoginScreen({ navigation }) {
             <TextInput
               style={styles.input}
               placeholder="••••••••"
+              placeholderTextColor={colors.muted}
               secureTextEntry
               value={password}
               onChangeText={setPassword}
             />
             <ErrorText>{err}</ErrorText>
-            <Button title={loading ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={loading} style={{ marginTop: spacing.lg }} />
-            <Pressable onPress={() => navigation.navigate('Register')} style={{ marginTop: spacing.lg, alignItems: 'center' }}>
-              <Text style={{ color: colors.accent, fontWeight: '600' }}>Create an account</Text>
+            <Button
+              title={loading ? 'Signing in…' : 'Sign in'}
+              onPress={submit}
+              disabled={loading}
+              style={{ marginTop: spacing.lg }}
+            />
+            <Pressable
+              onPress={() => navigation.navigate('Register')}
+              style={{ marginTop: spacing.md, alignItems: 'center' }}
+            >
+              <Text style={styles.linkText}>Create an account</Text>
             </Pressable>
-          </View>
 
-          <Text style={{ color: '#ffffffaa', textAlign: 'center', marginTop: spacing.lg, fontSize: 12 }}>
-            Demo guest · guest@portemilio.com / guest123
-          </Text>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable onPress={signInAsGuest} style={styles.guestBtn}>
+              <Text style={styles.guestBtnText}>Continue as guest</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -66,12 +149,73 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  brand: { color: '#fff', fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
-  sub: { color: '#ffffffbb', textAlign: 'center', marginBottom: spacing.xxl, letterSpacing: 3, fontSize: 12 },
-  card: { backgroundColor: colors.surface, padding: spacing.xl, borderRadius: radius.lg },
-  label: { ...font.small, marginTop: spacing.md, marginBottom: spacing.xs },
+  container: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+  },
+  logoWrap: {
+    alignItems: 'center',
+    marginBottom: 0,
+    marginTop: -20,
+
+  },
+  logo: {
+    width: 420,
+    height: 350,
+  },
+  formWrap: {
+    marginTop: -30,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: colors.subtle,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
   input: {
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: 12, fontSize: 15, backgroundColor: '#fff',
+    borderBottomWidth: 0.75,
+    borderBottomColor: colors.muted,
+    paddingHorizontal: 0,
+    paddingVertical: 10,
+    fontSize: 15,
+    backgroundColor: 'transparent',
+    color: colors.text,
+  },
+  linkText: {
+    color: colors.accent,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: spacing.md,
+    color: colors.muted,
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  guestBtn: {
+    paddingVertical: 14,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  guestBtnText: {
+    color: colors.accent,
+    fontWeight: '600',
+    fontSize: 15,
   },
 });

@@ -40,9 +40,9 @@ const ACTIVITIES = [
     id: 'scuba',
     type: 'Water sports',
     name: 'Scuba Diving',
-    subtitle: 'Discover the Mediterranean · Booked through SEArenity',
+    subtitle: 'Discover the Mediterranean',
     image: require('../assets/water-sports.jpg'),
-    target: 'SEArenityClub',
+    target: 'WaterSports',
   },
 ];
 

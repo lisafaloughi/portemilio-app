@@ -6,16 +6,18 @@ import {
   Pressable,
   Image,
   StyleSheet,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 
-const HERO_HEIGHT = 320;
+const HERO_HEIGHT = Dimensions.get('window').width;
 
 export default function CategoryPage({
   navigation,
   title,
+  subtitle,
   images = [],
   description,
   rows = [],
@@ -27,7 +29,7 @@ export default function CategoryPage({
     if (images.length <= 1) return;
     const id = setInterval(() => {
       setIndex(prev => (prev + 1) % images.length);
-    }, 1000);
+    }, 4000);
     return () => clearInterval(id);
   }, [images.length]);
 
@@ -40,12 +42,16 @@ export default function CategoryPage({
       >
         <View style={styles.hero}>
           {images.map((src, i) => (
-            <Image
+            <View
               key={i}
-              source={src}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
-              resizeMode="cover"
-            />
+            >
+              <Image
+                source={src}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            </View>
           ))}
           <View style={styles.heroShade} />
           <SafeAreaView edges={['top']} style={styles.heroSafe}>
@@ -55,6 +61,7 @@ export default function CategoryPage({
           </SafeAreaView>
           <View style={styles.heroBottom}>
             <Text style={styles.heroTitle}>{title}</Text>
+            {subtitle ? <Text style={styles.heroSubtitle}>{subtitle}</Text> : null}
             {images.length > 1 && (
               <View style={styles.dots}>
                 {images.map((_, i) => (
@@ -143,9 +150,20 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: '#fff',
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '700',
     letterSpacing: 0.3,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
+    marginTop: 4,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   dots: {
     flexDirection: 'row',

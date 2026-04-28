@@ -1,6 +1,31 @@
-const RESTAURANTS_IMG = require('../assets/restaurants.jpg');
-const BARS_IMG = require('../assets/bars.jpg');
-const BREAKFAST_IMG = require('../assets/breakfast.jpg');
+const LA_RESERVE_IMGS = [
+  require('../assets/restaurants/la_reserve.jpeg'),
+  require('../assets/restaurants/lareserve1.png'),
+  require('../assets/restaurants/lareserve2.png'),
+];
+const POOL_BAR_IMGS = [
+  require('../assets/restaurants/poolbar1.jpg'),
+  require('../assets/restaurants/poolbar2.jpg'),
+];
+const LA_TERRASSE_IMGS = [
+  require('../assets/restaurants/laterrasse1.jpg'),
+  require('../assets/restaurants/laterrasse2.jpg'),
+];
+const FELLINIS_IMGS = [
+  require('../assets/restaurants/felinis1.jpg'),
+  require('../assets/restaurants/felinis2.jpg'),
+  require('../assets/restaurants/felinis3.jpg'),
+];
+const KHUANS_IMGS = [
+  require('../assets/restaurants/khuans1.jpg'),
+  require('../assets/restaurants/khuans2.jpg'),
+  require('../assets/restaurants/khuans3.jpeg'),
+  require('../assets/restaurants/khuans4.jpg'),
+  require('../assets/restaurants/khuans5.png'),
+];
+const SUNSET_IMGS = [
+  require('../assets/restaurants/sunsetbar.jpg'),
+];
 
 export const VENUES = [
   {
@@ -8,11 +33,11 @@ export const VENUES = [
     name: 'La Réserve',
     categories: ['restaurants'],
     specialty: 'Brunch on Sundays',
-    image: RESTAURANTS_IMG,
-    images: [RESTAURANTS_IMG],
+    image: LA_RESERVE_IMGS[0],
+    images: LA_RESERVE_IMGS,
     description:
-      'A refined dining experience for our most memorable Sunday brunches — the kind that runs into the afternoon.',
-    highlights: ['Sunday brunch · 11 AM – 4 PM', 'Reservations recommended'],
+      'A refined buffet experience for our most memorable Sunday brunches — the kind that runs into the afternoon.',
+    highlights: ['Sunday brunch · 1 PM – 6 PM', 'Buffet for $35/adult · $25/child', 'Reservations recommended'],
     address: 'Portemilio · Seaside terrace',
     phone: '+9619123461',
     menuUrl: null,
@@ -23,11 +48,11 @@ export const VENUES = [
     name: 'Pool Bar',
     categories: ['restaurants', 'bars'],
     specialty: 'Eat & drink by the pool',
-    image: RESTAURANTS_IMG,
-    images: [RESTAURANTS_IMG],
+    image: POOL_BAR_IMGS[0],
+    images: POOL_BAR_IMGS,
     description:
-      'Casual bites and refreshing drinks served right by the pool. Toes in the water, glass in hand.',
-    highlights: ['Daily · 10 AM – sunset', 'Light bites & cocktails'],
+      'Simple lunches, fresh lemonade, and our signature Merry Cream.',
+    highlights: ['Daily · 9 AM – sunset'],
     address: 'Olympic pool deck',
     phone: '+9619123462',
     menuUrl: null,
@@ -38,11 +63,11 @@ export const VENUES = [
     name: 'La Terrasse',
     categories: ['restaurants'],
     specialty: 'Eat & drink with a view of the sea',
-    image: RESTAURANTS_IMG,
-    images: [RESTAURANTS_IMG],
+    image: LA_TERRASSE_IMGS[0],
+    images: LA_TERRASSE_IMGS,
     description:
       'Open-air dining suspended above the Mediterranean. The breeze, the horizon, and your plate.',
-    highlights: ['Lunch & dinner', 'Mediterranean menu'],
+    highlights: ['Lunch & dinner'],
     address: 'Seafront terrace',
     phone: '+9619123463',
     menuUrl: null,
@@ -53,11 +78,15 @@ export const VENUES = [
     name: "Fellini's",
     categories: ['restaurants'],
     specialty: 'Breakfast buffet',
-    image: BREAKFAST_IMG,
-    images: [BREAKFAST_IMG],
+    image: FELLINIS_IMGS[0],
+    images: FELLINIS_IMGS,
     description:
-      'Where mornings begin — a generous Lebanese buffet, fresh pastries, eggs to order, and anything you can dream up.',
-    highlights: ['Breakfast · 7 – 11 AM', 'Buffet · Lebanese & continental'],
+      'Where mornings begin — a generous Lebanese buffet, fresh pastries, eggs to order, and anything worth waking up for.',
+    highlights: [
+      'Breakfast Buffet · 7 – 11 AM',
+      '$25 per person — pay at reception',
+      'A la carte options also available',
+    ],
     address: '1st floor · Lobby level',
     phone: '+9619123464',
     menuUrl: null,
@@ -67,12 +96,12 @@ export const VENUES = [
     id: 'khuans-bar',
     name: "Khuan's Bar",
     categories: ['bars'],
-    specialty: 'Piano nights & pool table',
-    image: BARS_IMG,
-    images: [BARS_IMG],
+    specialty: 'Piano nights · pool table',
+    image: KHUANS_IMGS[0],
+    images: KHUANS_IMGS,
     description:
       'A classic piano bar for slow nights. Sink into the leather, rack up a game, listen to the music.',
-    highlights: ['Evenings · 6 PM – late', 'Live piano · Pool table'],
+    highlights: ['Evenings · 6 PM – late', 'Live piano · Late-night drinks & games'],
     address: 'Lobby level',
     phone: '+9619123465',
     menuUrl: null,
@@ -82,13 +111,13 @@ export const VENUES = [
     id: 'sunset-bar',
     name: 'Sunset Bar',
     categories: ['bars'],
-    specialty: 'Coming soon · Rooftop sunsets',
-    image: BARS_IMG,
-    images: [BARS_IMG],
+    specialty: 'Coming soon · Sunsets & cocktails',
+    image: SUNSET_IMGS[0],
+    images: SUNSET_IMGS,
     description:
-      "A new rooftop bar for the resort's best sunsets. Opening soon.",
+      "Light bites and fresh drinks, with front-row sunset views",
     highlights: ['Opening soon'],
-    address: 'Rooftop',
+    address: 'Sea deck near the tennis courts',
     upcoming: true,
     menuUrl: null,
     mapPinId: 'sunset-bar',
