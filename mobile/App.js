@@ -137,7 +137,7 @@ function AppStack() {
       <Stack.Screen name="Events" component={EventsScreen} options={{ title: 'Events' }} />
       <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book' }} />
       <Stack.Screen name="Cart" component={CartScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Info" component={InfoScreen} options={{ title: 'Live Requests' }} />
+      <Stack.Screen name="Info" component={InfoScreen} options={{ title: 'Active Requests' }} />
       <Stack.Screen name="ContactUs" component={ContactUsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Language" component={LanguageScreen} options={{ headerShown: false }} />

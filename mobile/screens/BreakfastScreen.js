@@ -57,7 +57,7 @@ export default function BreakfastScreen({ navigation }) {
       ) : (
         <>
           <Text style={styles.statusBody}>
-            Buy a coupon for ${COUPON_PRICE}. Use it any morning of your stay — it stays in your Live Requests until you redeem it.
+            Buy a coupon for ${COUPON_PRICE}. Use it any morning of your stay — it stays in your Active Requests until you redeem it.
           </Text>
           <Pressable
             onPress={buyCoupon}

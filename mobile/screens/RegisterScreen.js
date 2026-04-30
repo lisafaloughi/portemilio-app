@@ -1,108 +1,362 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
+import React, { useLayoutEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, ErrorText } from '../components/ui';
-import { colors, spacing, radius, font } from '../theme';
+import { colors, spacing, radius } from '../theme';
 import { api } from '../api';
 import { useAuth } from '../App';
+
+const SPLASH_BG = '#E8E1CB';
 
 // "DD/MM/YYYY" → "YYYY-MM-DD", returns '' if invalid
 function parseBirthday(s) {
   const m = (s || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!m) return '';
   const [, d, mo, y] = m;
-  const day = parseInt(d, 10), month = parseInt(mo, 10), year = parseInt(y, 10);
+  const day = parseInt(d, 10),
+    month = parseInt(mo, 10),
+    year = parseInt(y, 10);
   if (month < 1 || month > 12 || day < 1 || day > 31) return '';
   if (year < 1900 || year > new Date().getFullYear()) return '';
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export default function RegisterScreen() {
+export default function RegisterScreen({ navigation }) {
   const { signIn } = useAuth();
   const [form, setForm] = useState({
-    first_name: '', last_name: '', email: '', phone: '', password: '',
-    room_number: '', chalet_number: '', birthday: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirm_password: '',
+    unit_type: 'room', // 'room' | 'chalet'
+    unit_number: '',
+    birthday: '',
   });
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
-  const set = (k) => (v) => setForm(prev => ({ ...prev, [k]: v }));
+  const set = (k) => (v) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   const submit = async () => {
     if (!form.first_name || !form.last_name || !form.email || !form.password) {
-      setErr('First name, last name, email, and password are required.'); return;
+      setErr('First name, last name, email, and password are required.');
+      return;
+    }
+    if (form.password !== form.confirm_password) {
+      setErr('Passwords do not match.');
+      return;
     }
     let birthdayIso = '';
     if (form.birthday) {
       birthdayIso = parseBirthday(form.birthday);
-      if (!birthdayIso) { setErr('Birthday must be DD/MM/YYYY.'); return; }
+      if (!birthdayIso) {
+        setErr('Birthday must be DD/MM/YYYY.');
+        return;
+      }
     }
-    setLoading(true); setErr('');
+    setLoading(true);
+    setErr('');
     try {
       const payload = {
         name: `${form.first_name.trim()} ${form.last_name.trim()}`,
         email: form.email.trim().toLowerCase(),
-        phone: form.phone, password: form.password,
-        room_number: form.room_number, chalet_number: form.chalet_number,
+        phone: form.phone,
+        password: form.password,
+        room_number: form.unit_type === 'room' ? form.unit_number : '',
+        chalet_number: form.unit_type === 'chalet' ? form.unit_number : '',
         birthday: birthdayIso || undefined,
       };
       const { token, user } = await api.register(payload);
       await signIn(token, user);
-    } catch (e) { setErr(e.message); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
-        <Text style={{ ...font.h2, marginBottom: spacing.sm }}>Create your account</Text>
-        <Text style={{ ...font.small, marginBottom: spacing.lg }}>
-          Fill in your room or chalet number so we can deliver to you directly.
-        </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: SPLASH_BG }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={10}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
+        </Pressable>
 
-        <Text style={styles.label}>First name *</Text>
-        <TextInput style={styles.input} value={form.first_name} onChangeText={set('first_name')} />
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.logoWrap}>
+            <Image
+              source={require('../assets/splash.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
-        <Text style={styles.label}>Last name *</Text>
-        <TextInput style={styles.input} value={form.last_name} onChangeText={set('last_name')} />
+          <Text style={styles.title}>Create account</Text>
+       
 
-        <Text style={styles.label}>Email *</Text>
-        <TextInput style={styles.input} autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={set('email')} />
+          <View style={styles.formRow}>
+            <View style={styles.col}>
+              <Text style={styles.label}>First name *</Text>
+              <TextInput
+                style={styles.input}
+                value={form.first_name}
+                onChangeText={set('first_name')}
+              />
+            </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>Last name *</Text>
+              <TextInput
+                style={styles.input}
+                value={form.last_name}
+                onChangeText={set('last_name')}
+              />
+            </View>
+          </View>
 
-        <Text style={styles.label}>Password *</Text>
-        <TextInput style={styles.input} secureTextEntry value={form.password} onChangeText={set('password')} />
+          <Text style={styles.label}>Email *</Text>
+          <TextInput
+            style={styles.input}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="you@email.com"
+            placeholderTextColor={colors.muted}
+            value={form.email}
+            onChangeText={set('email')}
+          />
 
-        <Text style={styles.label}>Phone</Text>
-        <TextInput style={styles.input} keyboardType="phone-pad" value={form.phone} onChangeText={set('phone')} />
+          <Text style={styles.label}>Password *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="••••••••"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            value={form.password}
+            onChangeText={set('password')}
+          />
 
-        <Text style={styles.label}>Birthday</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="DD/MM/YYYY"
-          placeholderTextColor={colors.muted}
-          keyboardType="numbers-and-punctuation"
-          value={form.birthday}
-          onChangeText={set('birthday')}
-        />
-        <Text style={styles.hint}>Used to celebrate your big day — can't be changed later.</Text>
+          <Text style={styles.label}>Confirm password *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="••••••••"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            value={form.confirm_password}
+            onChangeText={set('confirm_password')}
+          />
 
-        <Text style={styles.label}>Hotel Room #</Text>
-        <TextInput style={styles.input} value={form.room_number} onChangeText={set('room_number')} />
+          <Text style={styles.label}>Phone</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="phone-pad"
+            placeholder="+961 ..."
+            placeholderTextColor={colors.muted}
+            value={form.phone}
+            onChangeText={set('phone')}
+          />
 
-        <Text style={styles.label}>Chalet #</Text>
-        <TextInput style={styles.input} value={form.chalet_number} onChangeText={set('chalet_number')} />
+          <Text style={styles.label}>Birthday</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="DD/MM/YYYY"
+            placeholderTextColor={colors.muted}
+            keyboardType="numbers-and-punctuation"
+            value={form.birthday}
+            onChangeText={set('birthday')}
+          />
+          <Text style={styles.hint}>
+            Used to celebrate your big day — can't be changed later.
+          </Text>
 
-        <ErrorText>{err}</ErrorText>
-        <Button title={loading ? 'Creating…' : 'Create account'} onPress={submit} disabled={loading} style={{ marginTop: spacing.lg }} />
-      </ScrollView>
+          <Text style={styles.label}>Where are you staying?</Text>
+          <View style={styles.unitToggle}>
+            <Pressable
+              style={[
+                styles.unitPill,
+                form.unit_type === 'room' && styles.unitPillActive,
+              ]}
+              onPress={() => set('unit_type')('room')}
+            >
+              <Text
+                style={[
+                  styles.unitPillText,
+                  form.unit_type === 'room' && styles.unitPillTextActive,
+                ]}
+              >
+                Hotel room
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.unitPill,
+                form.unit_type === 'chalet' && styles.unitPillActive,
+              ]}
+              onPress={() => set('unit_type')('chalet')}
+            >
+              <Text
+                style={[
+                  styles.unitPillText,
+                  form.unit_type === 'chalet' && styles.unitPillTextActive,
+                ]}
+              >
+                Chalet
+              </Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.label}>
+            {form.unit_type === 'room' ? 'Room number' : 'Chalet number'}
+          </Text>
+          <TextInput
+            style={[styles.input, styles.inputShort]}
+            keyboardType="number-pad"
+            maxLength={6}
+            value={form.unit_number}
+            onChangeText={set('unit_number')}
+          />
+
+          <ErrorText>{err}</ErrorText>
+          <Button
+            title={loading ? 'Creating…' : 'Create account'}
+            onPress={submit}
+            disabled={loading}
+            style={{ marginTop: spacing.lg, borderRadius: radius.md }}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  label: { ...font.small, marginTop: spacing.md, marginBottom: spacing.xs },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: 12, fontSize: 15, backgroundColor: '#fff',
+  backBtn: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: SPLASH_BG,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  hint: { ...font.tiny, marginTop: 4 },
+  scroll: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 8,
+    paddingBottom: 60,
+  },
+  logoWrap: {
+    alignItems: 'center',
+    marginTop: -50,
+    marginBottom: -65,
+  },
+  logo: {
+    width: 420,
+    height: 320,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.accent,
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  intro: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.subtle,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  col: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.subtle,
+    marginTop: spacing.md,
+    marginBottom: 2,
+  },
+  input: {
+    borderBottomWidth: 0.75,
+    borderBottomColor: colors.muted,
+    paddingHorizontal: 0,
+    paddingVertical: 10,
+    fontSize: 17,
+    backgroundColor: 'transparent',
+    color: colors.text,
+  },
+  inputShort: {
+    width: 110,
+    textAlign: 'center',
+    alignSelf: 'flex-start',
+  },
+  hint: {
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 6,
+  },
+  unitToggle: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  unitPill: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.muted,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  unitPillActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  unitPillText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  unitPillTextActive: {
+    color: '#fff',
+  },
 });

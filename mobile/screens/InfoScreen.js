@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Card, Loading } from '../components/ui';
-import { colors, spacing, radius, font } from '../theme';
+import { colors, spacing, font } from '../theme';
 import { api } from '../api';
 
 const TABS = [
@@ -13,23 +13,45 @@ const TABS = [
   { key: 'contact', label: 'Contact', icon: 'message-text-outline' },
 ];
 
-const CONTACT_KEYS = [
-  ['welcome_message',  'Welcome'],
-  ['address',          'Address'],
-  ['front_desk_phone', 'Front desk'],
-  ['emergency_phone',  'Emergency'],
-  ['wifi_name',        'Wi-Fi network'],
-  ['wifi_password',    'Wi-Fi password'],
-];
-
 const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing']);
 const LIVE_BOOKING_STATUSES = new Set(['pending', 'confirmed']);
 
-const SOCIAL = {
-  instagram: 'https://instagram.com/portemilio',
-  facebook: 'https://www.facebook.com/PortemilioHotelResort',
-  website: 'https://portemilio.com',
-};
+const HOTEL_PHONE = '+961 9 933 300';
+const WHATSAPP_PHONE = '+961 81 697 272';
+const HOTEL_EMAIL = 'reservation@portemilio.com';
+const INSTAGRAM_URL = 'https://www.instagram.com/portemilio/';
+const FACEBOOK_URL = 'https://www.facebook.com/PortemilioHotelResort/';
+const WEBSITE_URL = 'https://www.portemilio.com';
+
+const digits = (n) => n.replace(/\D/g, '');
+const openUrl = (url) => Linking.openURL(url).catch(() => {});
+
+const CONTACTS = [
+  {
+    icon: 'phone-outline',
+    title: 'Call the front desk',
+    subtitle: HOTEL_PHONE,
+    action: () => openUrl(`tel:+${digits(HOTEL_PHONE)}`),
+  },
+  {
+    icon: 'whatsapp',
+    title: 'WhatsApp',
+    subtitle: WHATSAPP_PHONE,
+    action: () => openUrl(`https://wa.me/${digits(WHATSAPP_PHONE)}`),
+  },
+  {
+    icon: 'email-outline',
+    title: 'Email reservations',
+    subtitle: HOTEL_EMAIL,
+    action: () => openUrl(`mailto:${HOTEL_EMAIL}`),
+  },
+  {
+    icon: 'map-marker-outline',
+    title: 'Visit us',
+    subtitle: 'Kaslik Seaside Road | Jounieh Lebanon',
+    action: () => openUrl('https://maps.google.com/?q=Portemilio+Hotel+Kaslik'),
+  },
+];
 
 export default function InfoScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -38,23 +60,18 @@ export default function InfoScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [contact, setContact] = useState({});
 
   useLayoutEffect(() => {
     navigation?.setOptions({ headerShown: false });
   }, [navigation]);
 
   const load = useCallback(async () => {
-    const [dRes, bRes, sRes] = await Promise.all([
+    const [dRes, bRes] = await Promise.all([
       api.myDeliveries().catch(() => []),
       api.myBookings().catch(() => []),
-      Promise.all(CONTACT_KEYS.map(([k]) => api.setting(k).catch(() => ({ value: '' })))),
     ]);
     setOrders(dRes.filter(d => LIVE_ORDER_STATUSES.has(d.status)));
     setBookings(bRes.filter(b => LIVE_BOOKING_STATUSES.has(b.status)));
-    const obj = {};
-    CONTACT_KEYS.forEach(([k], i) => obj[k] = sRes[i].value);
-    setContact(obj);
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -68,7 +85,7 @@ export default function InfoScreen({ navigation }) {
         <Pressable style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Live requests</Text>
+        <Text style={styles.title}>Active Requests</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -102,7 +119,7 @@ export default function InfoScreen({ navigation }) {
           <>
             {tab === 'orders' && <OrdersTab orders={orders} />}
             {tab === 'bookings' && <BookingsTab bookings={bookings} />}
-            {tab === 'contact' && <ContactTab contact={contact} />}
+            {tab === 'contact' && <ContactTab />}
           </>
         )}
       </ScrollView>
@@ -123,10 +140,42 @@ function OrdersTab({ orders }) {
               <Text style={font.h3}>{d.restaurant_name || 'Delivery'}</Text>
               <StatusChip s={d.status} />
             </View>
-            <Text style={{ ...font.small, marginTop: 2 }}>To: {d.room_or_chalet}</Text>
+            {(() => {
+              let destination = null;
+              if (d.chalet_number) destination = `Chalet ${d.chalet_number}`;
+              else if (d.room_number) destination = `Hotel room ${d.room_number}`;
+              else if (d.notes && /Deliver to:\s*([^.]+)/i.test(d.notes)) {
+                destination = d.notes.match(/Deliver to:\s*([^.]+)/i)[1].trim();
+              } else if (d.room_or_chalet) {
+                destination = d.room_or_chalet;
+              }
+              return destination ? (
+                <Text style={{ ...font.small, marginTop: 2 }}>To: {destination}</Text>
+              ) : null;
+            })()}
             <Text style={{ ...font.small, marginTop: 2 }}>
               {(d.items || []).map(i => `${i.qty}× ${i.name}`).join(', ')}
             </Text>
+            {(() => {
+              let scheduledLabel = null;
+              if (d.scheduled_for) {
+                scheduledLabel = new Date(d.scheduled_for).toLocaleTimeString(
+                  [],
+                  { hour: 'numeric', minute: '2-digit' }
+                );
+              } else if (d.notes && /Scheduled for ([^.]+)/i.test(d.notes)) {
+                scheduledLabel = d.notes.match(/Scheduled for ([^.]+)/i)[1].trim();
+              }
+              if (!scheduledLabel) return null;
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <MaterialCommunityIcons name="clock-outline" size={14} color={colors.accent} />
+                  <Text style={{ ...font.small, color: colors.accent, fontWeight: '700' }}>
+                    Scheduled for {scheduledLabel}
+                  </Text>
+                </View>
+              );
+            })()}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm }}>
               <Text style={font.small}>{new Date(d.created_at).toLocaleString()}</Text>
               <Text style={{ fontWeight: '700' }}>${Number(d.total).toFixed(2)}</Text>
@@ -161,46 +210,41 @@ function BookingsTab({ bookings }) {
   );
 }
 
-function ContactTab({ contact }) {
+function ContactTab() {
   return (
-    <>
-      <Card>
-        <View style={{ padding: spacing.md }}>
-          <Text style={styles.contactTitle}>Portemilio Resort</Text>
-          <Text style={{ ...font.small, marginTop: 2 }}>Kaslik · Lebanon</Text>
-          {CONTACT_KEYS.map(([k, label]) => contact[k] ? (
-            <View key={k} style={{ marginTop: spacing.md }}>
-              <Text style={{ ...font.small, color: colors.muted }}>{label}</Text>
-              <Text
-                style={{ ...font.body, color: (k.includes('phone') ? colors.accent : colors.text), marginTop: 2 }}
-                onPress={k.includes('phone') ? () => Linking.openURL(`tel:${contact[k]}`) : undefined}
-              >
-                {contact[k]}
-              </Text>
-            </View>
-          ) : null)}
-        </View>
-      </Card>
+    <View>
+      {CONTACTS.map((item, i) => (
+        <Pressable
+          key={i}
+          style={({ pressed }) => [styles.contactRow, pressed && { opacity: 0.55 }]}
+          onPress={item.action}
+        >
+          <MaterialCommunityIcons
+            name={item.icon}
+            size={22}
+            color={colors.accent}
+            style={{ marginRight: 18 }}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.contactRowTitle}>{item.title}</Text>
+            <Text style={styles.contactRowSubtitle}>{item.subtitle}</Text>
+          </View>
+        </Pressable>
+      ))}
 
-      <Text style={styles.socialHeading}>Follow us</Text>
+      <Text style={styles.followLabel}>Follow us</Text>
       <View style={styles.socialRow}>
-        <SocialButton icon="instagram" label="Instagram" url={SOCIAL.instagram} />
-        <SocialButton icon="facebook" label="Facebook" url={SOCIAL.facebook} />
-        <SocialButton icon="web" label="Website" url={SOCIAL.website} />
+        <Pressable style={styles.socialBtn} onPress={() => openUrl(INSTAGRAM_URL)}>
+          <MaterialCommunityIcons name="instagram" size={28} color="#c9a87bfe" />
+        </Pressable>
+        <Pressable style={styles.socialBtn} onPress={() => openUrl(FACEBOOK_URL)}>
+          <MaterialCommunityIcons name="facebook" size={28} color="#c9a87bfe" />
+        </Pressable>
+        <Pressable style={styles.socialBtn} onPress={() => openUrl(WEBSITE_URL)}>
+          <MaterialCommunityIcons name="web" size={28} color="#c9a87bfe" />
+        </Pressable>
       </View>
-    </>
-  );
-}
-
-function SocialButton({ icon, label, url }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.75 }]}
-      onPress={() => Linking.openURL(url)}
-    >
-      <MaterialCommunityIcons name={icon} size={26} color={colors.accent} />
-      <Text style={styles.socialLabel}>{label}</Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -273,18 +317,41 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
 
-  contactTitle: { fontSize: 20, fontWeight: '700', color: colors.accent },
-
-  socialHeading: { ...font.tiny, textTransform: 'uppercase', letterSpacing: 1, marginTop: spacing.lg, marginBottom: spacing.sm, marginLeft: spacing.xs, color: colors.accent, fontWeight: '700' },
-  socialRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  socialBtn: {
-    flex: 1,
+  contactRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    paddingVertical: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  socialLabel: { ...font.small, color: colors.text, fontWeight: '600', marginTop: 4 },
+  contactRowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  contactRowSubtitle: {
+    fontSize: 13,
+    color: colors.subtle,
+    marginTop: 2,
+  },
+  followLabel: {
+    fontSize: 12,
+    letterSpacing: 1.5,
+    fontWeight: '700',
+    color: colors.subtle,
+    textAlign: 'center',
+    marginTop: 44,
+    marginBottom: 18,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+  },
+  socialBtn: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

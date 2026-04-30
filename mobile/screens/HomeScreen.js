@@ -22,7 +22,7 @@ import { colors, radius } from '../theme';
 import SideDrawer from '../components/SideDrawer';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { ServingFoodIcon } from '@hugeicons/core-free-icons';
-import { useCart, useAuth } from '../App';
+import { useAuth } from '../App';
 import { api } from '../api';
 
 const HOTEL_PHONE = '+9619636000';
@@ -269,9 +269,12 @@ export default function HomeScreen({ navigation }) {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewDismissed, setReviewDismissed] = useState(false);
-  const { cart, addToCart } = useCart();
-  const { isGuest, signOut } = useAuth();
-  const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+  const [scheduleAt, setScheduleAt] = useState(null);
+  const [ordering, setOrdering] = useState(false);
+  const [deliveryUnitType, setDeliveryUnitType] = useState('room');
+  const [deliveryUnitNumber, setDeliveryUnitNumber] = useState('');
+  const [deliveryEditing, setDeliveryEditing] = useState(false);
+  const { isGuest, signOut, user } = useAuth();
 
   const startXRef = useRef(0);
   const edgeSwipeResponder = useMemo(
@@ -324,7 +327,43 @@ export default function HomeScreen({ navigation }) {
 
   const openPlat = () => {
     setPlatQty(1);
+    setScheduleAt(null);
+    if (user?.chalet_number) {
+      setDeliveryUnitType('chalet');
+      setDeliveryUnitNumber(String(user.chalet_number));
+    } else {
+      setDeliveryUnitType('room');
+      setDeliveryUnitNumber(user?.room_number ? String(user.room_number) : '');
+    }
+    setDeliveryEditing(false);
     setPlatOpen(true);
+  };
+
+  const computeTimeSlots = () => {
+    const slots = [];
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+    // First slot = (now + 30 min), snapped UP to next half-hour boundary
+    const start = new Date(now.getTime() + 30 * 60 * 1000);
+    const m = start.getMinutes();
+    if (m !== 0 && m !== 30) {
+      start.setMinutes(m < 30 ? 30 : 60, 0, 0);
+    } else {
+      start.setSeconds(0, 0);
+    }
+    while (start <= cutoff && slots.length < 5) {
+      slots.push(new Date(start));
+      start.setMinutes(start.getMinutes() + 30);
+    }
+    return slots;
+  };
+  const TIME_SLOTS = computeTimeSlots();
+
+  const formatTime = (d) => {
+    const h = d.getHours() % 12 || 12;
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const period = d.getHours() >= 12 ? 'PM' : 'AM';
+    return `${h}:${m} ${period}`;
   };
 
   const openReview = (initialRating = 0) => {
@@ -346,23 +385,52 @@ export default function HomeScreen({ navigation }) {
     setReviewDismissed(true);
   };
 
-  const handleAddToCart = () => {
-    addToCart(
-      {
-        id: PLAT_DU_JOUR.id,
-        restaurant_id: PLAT_DU_JOUR.restaurant_id,
-        name: PLAT_DU_JOUR.name,
-        price: PLAT_DU_JOUR.price,
-      },
-      platQty
-    );
-    setPlatOpen(false);
-    setTimeout(() => {
+  const handleOrder = async () => {
+    if (ordering) return;
+    if (!deliveryUnitNumber) {
       Alert.alert(
-        'Added to cart',
-        `${platQty} × ${PLAT_DU_JOUR.name} added to your cart.`
+        'Where to?',
+        'Please enter a room or chalet number for delivery.'
       );
-    }, 200);
+      return;
+    }
+    setOrdering(true);
+    try {
+      const unitLabel = deliveryUnitType === 'chalet' ? 'Chalet' : 'Hotel room';
+      const destination = `${unitLabel} ${deliveryUnitNumber}`;
+      const noteParts = [`Deliver to: ${destination}.`];
+      if (scheduleAt) {
+        noteParts.push(`Scheduled for ${formatTime(scheduleAt)} today.`);
+      }
+      await api.createDelivery({
+        restaurant_id: PLAT_DU_JOUR.restaurant_id,
+        items: [
+          {
+            id: PLAT_DU_JOUR.id,
+            name: PLAT_DU_JOUR.name,
+            price: PLAT_DU_JOUR.price,
+            qty: platQty,
+          },
+        ],
+        notes: noteParts.join(' '),
+        scheduled_for: scheduleAt ? scheduleAt.toISOString() : null,
+        room_number: deliveryUnitType === 'room' ? deliveryUnitNumber : '',
+        chalet_number: deliveryUnitType === 'chalet' ? deliveryUnitNumber : '',
+      });
+      setPlatOpen(false);
+      setTimeout(() => {
+        Alert.alert(
+          'Order placed',
+          scheduleAt
+            ? `${platQty} × ${PLAT_DU_JOUR.name} scheduled for ${formatTime(scheduleAt)}. Track it in Active Requests.`
+            : `${platQty} × ${PLAT_DU_JOUR.name} ordered. Track it in Active Requests.`
+        );
+      }, 200);
+    } catch (e) {
+      Alert.alert('Order failed', e.message || 'Please try again.');
+    } finally {
+      setOrdering(false);
+    }
   };
 
   return (
@@ -386,16 +454,6 @@ export default function HomeScreen({ navigation }) {
               <MaterialCommunityIcons name="menu" size={20} color="#fff" />
             </Pressable>
             <View style={styles.heroTopRight}>
-              {!isGuest && (
-                <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Cart')}>
-                  <MaterialCommunityIcons name="cart-outline" size={20} color="#fff" />
-                  {cartCount > 0 && (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{cartCount}</Text>
-                    </View>
-                  )}
-                </Pressable>
-              )}
               <Pressable
                 style={styles.headerBtn}
                 onPress={() => (isGuest ? signOut() : navigation.navigate('Profile'))}
@@ -570,10 +628,146 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.orderBtnText}>Call to order</Text>
               </Pressable>
             ) : (
-              <Pressable style={styles.orderBtn} onPress={handleAddToCart}>
-                <MaterialCommunityIcons name="cart-plus" size={18} color="#fff" />
-                <Text style={styles.orderBtnText}>Add to cart</Text>
-              </Pressable>
+              <>
+                <Text style={styles.scheduleLabel}>Where?</Text>
+                {deliveryEditing ? (
+                  <View style={styles.deliveryEditRow}>
+                    <View style={styles.deliveryToggle}>
+                      <Pressable
+                        style={[
+                          styles.deliveryPill,
+                          deliveryUnitType === 'room' && styles.deliveryPillActive,
+                        ]}
+                        onPress={() => setDeliveryUnitType('room')}
+                      >
+                        <Text
+                          style={[
+                            styles.deliveryPillText,
+                            deliveryUnitType === 'room' && styles.deliveryPillTextActive,
+                          ]}
+                        >
+                          Hotel room
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.deliveryPill,
+                          deliveryUnitType === 'chalet' && styles.deliveryPillActive,
+                        ]}
+                        onPress={() => setDeliveryUnitType('chalet')}
+                      >
+                        <Text
+                          style={[
+                            styles.deliveryPillText,
+                            deliveryUnitType === 'chalet' && styles.deliveryPillTextActive,
+                          ]}
+                        >
+                          Chalet
+                        </Text>
+                      </Pressable>
+                    </View>
+                    <TextInput
+                      style={styles.deliveryNumberInput}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      placeholder="#"
+                      placeholderTextColor={colors.muted}
+                      value={deliveryUnitNumber}
+                      onChangeText={setDeliveryUnitNumber}
+                      onSubmitEditing={() => {
+                        if (deliveryUnitNumber) setDeliveryEditing(false);
+                      }}
+                      returnKeyType="done"
+                    />
+                    <Pressable
+                      style={[
+                        styles.deliveryConfirmBtn,
+                        !deliveryUnitNumber && { opacity: 0.4 },
+                      ]}
+                      onPress={() => deliveryUnitNumber && setDeliveryEditing(false)}
+                      disabled={!deliveryUnitNumber}
+                      hitSlop={6}
+                    >
+                      <MaterialCommunityIcons name="check" size={18} color="#fff" />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.deliveryRow}>
+                    <MaterialCommunityIcons
+                      name={deliveryUnitType === 'chalet' ? 'home-outline' : 'bed-outline'}
+                      size={18}
+                      color={colors.accent}
+                    />
+                    <Text style={styles.deliveryText}>
+                      {deliveryUnitNumber
+                        ? `${deliveryUnitType === 'chalet' ? 'Chalet' : 'Hotel room'} ${deliveryUnitNumber}`
+                        : 'No room/chalet on file'}
+                    </Text>
+                    <Pressable
+                      hitSlop={6}
+                      onPress={() => setDeliveryEditing(true)}
+                    >
+                      <Text style={styles.deliveryChange}>Change</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                <Text style={styles.scheduleLabel}>When?</Text>
+                <View style={styles.scheduleRow}>
+                  <Pressable
+                    style={[styles.timeChip, !scheduleAt && styles.timeChipActive]}
+                    onPress={() => setScheduleAt(null)}
+                  >
+                    <Text
+                      style={[
+                        styles.timeChipText,
+                        !scheduleAt && styles.timeChipTextActive,
+                      ]}
+                    >
+                      Now
+                    </Text>
+                  </Pressable>
+                  {TIME_SLOTS.map((slot, i) => {
+                    const active =
+                      scheduleAt && slot.getTime() === scheduleAt.getTime();
+                    return (
+                      <Pressable
+                        key={i}
+                        style={[styles.timeChip, active && styles.timeChipActive]}
+                        onPress={() => setScheduleAt(slot)}
+                      >
+                        <Text
+                          style={[
+                            styles.timeChipText,
+                            active && styles.timeChipTextActive,
+                          ]}
+                        >
+                          {formatTime(slot)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Pressable
+                  style={[styles.orderBtn, ordering && { opacity: 0.6 }]}
+                  onPress={handleOrder}
+                  disabled={ordering}
+                >
+                  <MaterialCommunityIcons
+                    name={scheduleAt ? 'clock-outline' : 'silverware-fork-knife'}
+                    size={18}
+                    color="#fff"
+                  />
+                  <Text style={styles.orderBtnText}>
+                    {ordering
+                      ? 'Placing order…'
+                      : scheduleAt
+                      ? `Schedule for ${formatTime(scheduleAt)}`
+                      : 'Order now'}
+                  </Text>
+                </Pressable>
+              </>
             )}
           </Pressable>
         </Pressable>
@@ -984,12 +1178,198 @@ const styles = StyleSheet.create({
     minWidth: 18,
     textAlign: 'center',
   },
+  scheduleLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: colors.subtle,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  deliveryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deliveryText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  deliveryChange: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  deliveryEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deliveryToggle: {
+    flexDirection: 'row',
+    gap: 6,
+    flex: 1,
+  },
+  deliveryPill: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deliveryPillActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  deliveryPillText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  deliveryPillTextActive: {
+    color: '#fff',
+  },
+  deliveryNumberInput: {
+    width: 70,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: 8,
+    fontSize: 15,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  deliveryConfirmBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  scheduleChipFlex: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  pickerCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingTop: 8,
+  },
+  pickerHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 12,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 22,
+    paddingBottom: 16,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  pickerSubtitle: {
+    fontSize: 13,
+    color: colors.subtle,
+    marginTop: 2,
+  },
+  pickerClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 22,
+    paddingBottom: 8,
+  },
+  timeChip: {
+    width: '31%',
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeChipActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  timeChipText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  timeChipTextActive: {
+    color: '#fff',
+  },
+  pickerEmpty: {
+    paddingHorizontal: 22,
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  pickerEmptyText: {
+    fontSize: 14,
+    color: colors.subtle,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  scheduleChipActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  scheduleChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  scheduleChipTextActive: {
+    color: '#fff',
+  },
   orderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    marginTop: 22,
+    marginTop: 18,
     paddingVertical: 16,
     borderRadius: 999,
     backgroundColor: colors.accent,
