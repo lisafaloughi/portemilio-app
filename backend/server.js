@@ -710,16 +710,18 @@ function fmtReminderTime(iso) {
   } catch { return iso; }
 }
 
-function sendReminder(b) {
+function sendReminder(b, minutesLeft = 30) {
   const what = b.resource_name || b.resource_type || 'booking';
   const when = fmtReminderTime(b.start_time);
+  const mins = Math.max(1, Math.round(minutesLeft));
+  const timePhrase = `${mins} minute${mins === 1 ? '' : 's'}`;
   let title, body;
   if (b.resource_type === 'tennis') {
-    title = `Your court is ready at ${when}!`;
-    body = `Get your racquet and tennis balls ready — ${what} starts in 30 minutes. See you on the court!`;
+    title = `Court reminder — ${when}`;
+    body = `Get your tennis racquet and balls ready — ${what} is yours in ${timePhrase}. See you on the court!`;
   } else {
     title = `Reminder: ${what} at ${when}`;
-    body = `Your ${what.toLowerCase()} starts in 30 minutes.`;
+    body = `Your ${what.toLowerCase()} is yours in ${timePhrase}.`;
   }
   db.prepare(`INSERT INTO notifications (title, body, user_id, audience) VALUES (?, ?, ?, 'targeted')`)
     .run(title, body, b.user_id);
@@ -727,8 +729,8 @@ function sendReminder(b) {
   if (b.push_token) sendExpoPushToTokens([b.push_token], title, body).catch(() => {});
 }
 
-// Called right after a new booking is created — fires the reminder immediately if
-// the slot is already within 35 minutes (the periodic scan would miss it otherwise).
+// Called right after a new booking is created — fires the reminder immediately only
+// if the slot is already 30 minutes away or less (the periodic scan would miss it).
 function maybeSendImmediateReminder(bookingId) {
   try {
     const b = db.prepare(`
@@ -737,9 +739,13 @@ function maybeSendImmediateReminder(bookingId) {
       WHERE b.id = ?
         AND b.status = 'confirmed'
         AND b.reminder_sent = 0
-        AND datetime(b.start_time) BETWEEN datetime('now') AND datetime('now', '+35 minutes')
+        AND datetime(b.start_time) BETWEEN datetime('now') AND datetime('now', '+30 minutes')
     `).get(bookingId);
-    if (b) sendReminder(b);
+    if (b) {
+      const startMs = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z').getTime();
+      const minutesLeft = (startMs - Date.now()) / 60000;
+      sendReminder(b, minutesLeft);
+    }
   } catch (e) {
     console.warn('Immediate reminder check failed:', e.message);
   }

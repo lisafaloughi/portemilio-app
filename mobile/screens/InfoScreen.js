@@ -60,6 +60,8 @@ export default function InfoScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [hasLiveOrders, setHasLiveOrders] = useState(false);
+  const [hasLiveBookings, setHasLiveBookings] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
 
@@ -72,8 +74,12 @@ export default function InfoScreen({ navigation }) {
       api.myDeliveries().catch(() => []),
       api.myBookings().catch(() => []),
     ]);
-    setOrders(dRes.filter(d => LIVE_ORDER_STATUSES.has(d.status)));
-    setBookings(bRes.filter(b => LIVE_BOOKING_STATUSES.has(b.status)));
+    const liveOrders = dRes.filter(d => LIVE_ORDER_STATUSES.has(d.status));
+    const liveBookings = bRes.filter(b => LIVE_BOOKING_STATUSES.has(b.status));
+    setOrders(liveOrders);
+    setBookings(liveBookings);
+    setHasLiveOrders(liveOrders.length > 0);
+    setHasLiveBookings(liveBookings.length > 0);
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -108,14 +114,19 @@ export default function InfoScreen({ navigation }) {
       <View style={styles.tabRow}>
         {TABS.map(t => {
           const active = t.key === tab;
+          const showDot =
+            (t.key === 'orders' && hasLiveOrders) ||
+            (t.key === 'bookings' && hasLiveBookings);
           return (
             <Pressable key={t.key} style={styles.tab} onPress={() => setTab(t.key)}>
-              <MaterialCommunityIcons
-                name={t.icon}
-                size={20}
-                color={active ? colors.accent : colors.subtle}
-                style={{ marginBottom: 4 }}
-              />
+              <View style={{ marginBottom: 4 }}>
+                <MaterialCommunityIcons
+                  name={t.icon}
+                  size={20}
+                  color={active ? colors.accent : colors.subtle}
+                />
+                {showDot && <View style={styles.tabDot} />}
+              </View>
               <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
                 {t.label}
               </Text>
@@ -249,21 +260,18 @@ function BookingsTab({ bookings, onCancel }) {
         const dateLabel = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
         return (
           <Card key={b.id}>
-            <View style={{ padding: spacing.md }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ padding: spacing.md, flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, marginRight: 10 }}>
                 <Text style={font.h3}>{b.resource_name || humanize(b.resource_type)}</Text>
-                <StatusChip s={b.status} />
+                <Text style={{ ...font.small, marginTop: 4 }}>{dateLabel} · {timeLabel}</Text>
+                {b.notes ? <Text style={{ ...font.small, marginTop: 4, fontStyle: 'italic' }}>"{b.notes}"</Text> : null}
               </View>
-              <Text style={{ ...font.small, marginTop: 4 }}>{dateLabel} · {timeLabel}</Text>
-              {b.party_size ? <Text style={font.small}>Party of {b.party_size}</Text> : null}
-              {b.notes ? <Text style={{ ...font.small, marginTop: 4, fontStyle: 'italic' }}>"{b.notes}"</Text> : null}
-              <Pressable
-                style={styles.cancelBtn}
-                onPress={() => onCancel(b)}
-              >
-                <MaterialCommunityIcons name="calendar-remove-outline" size={14} color="#e03030" />
-                <Text style={styles.cancelBtnText}>Cancel booking</Text>
-              </Pressable>
+              <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                <StatusChip s={b.status} />
+                <Pressable style={styles.cancelBtn} onPress={() => onCancel(b)}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </Pressable>
+              </View>
             </View>
           </Card>
         );
@@ -373,6 +381,17 @@ const styles = StyleSheet.create({
   tabLabelActive: { color: colors.accent, fontWeight: '700' },
   tabUnderline: { height: 3, width: '70%', marginTop: 6, backgroundColor: 'transparent', borderRadius: 2 },
   tabUnderlineActive: { backgroundColor: colors.accent },
+  tabDot: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.danger,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
 
   empty: {
     alignItems: 'center',
@@ -417,13 +436,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e03030',
