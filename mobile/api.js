@@ -61,6 +61,8 @@ export const api = {
   // Deliveries
   createDelivery: (payload) => request('/deliveries', { method: 'POST', body: payload }),
   myDeliveries: () => request('/deliveries/mine'),
+  clearDeliveryHistory: () => request('/deliveries/mine/history', { method: 'DELETE' }),
+  clearBookingHistory: () => request('/bookings/mine/history', { method: 'DELETE' }),
 
   // Notifications
   myNotifications: () => request('/notifications/mine'),

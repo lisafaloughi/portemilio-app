@@ -27,7 +27,7 @@ import { api } from '../api';
 
 const HOTEL_PHONE = '+9619636000';
 
-const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing']);
+const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing', 'processing', 'out_for_delivery']);
 const LIVE_BOOKING_STATUSES = new Set(['pending', 'confirmed']);
 
 const PLAT_DU_JOUR = {

@@ -20,7 +20,7 @@ export function Screen({ children, refreshing, onRefresh, scroll = true }) {
 }
 
 // White-background page with circular back button + large navy heading (matches Account info style)
-export function HeaderScreen({ title, navigation, children, onRefresh, refreshing, keyboardShouldPersistTaps }) {
+export function HeaderScreen({ title, navigation, children, onRefresh, refreshing, keyboardShouldPersistTaps, rightAction }) {
   const insets = useSafeAreaInsets();
   useLayoutEffect(() => {
     navigation?.setOptions({ headerShown: false });
@@ -33,9 +33,12 @@ export function HeaderScreen({ title, navigation, children, onRefresh, refreshin
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
         refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined}
       >
-        <Pressable style={styles.headerBackBtn} onPress={() => navigation?.goBack()} hitSlop={8}>
-          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
+          <Pressable style={styles.headerBackBtn} onPress={() => navigation?.goBack()} hitSlop={8}>
+            <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
+          </Pressable>
+          {rightAction || <View style={{ width: 40 }} />}
+        </View>
         <Text style={styles.headerTitle}>{title}</Text>
         {children}
       </ScrollView>

@@ -197,6 +197,16 @@ api.get('/deliveries/mine', authRequired, (req, res) => {
   res.json(rows.map(r => ({ ...r, items: JSON.parse(r.items_json) })));
 });
 
+api.delete('/deliveries/mine/history', authRequired, (req, res) => {
+  db.prepare(`DELETE FROM deliveries WHERE user_id = ? AND status IN ('delivered','cancelled')`).run(req.user.id);
+  res.json({ ok: true });
+});
+
+api.delete('/bookings/mine/history', authRequired, (req, res) => {
+  db.prepare(`DELETE FROM bookings WHERE user_id = ? AND status IN ('completed','cancelled')`).run(req.user.id);
+  res.json({ ok: true });
+});
+
 // ---------- Notifications ----------
 api.get('/notifications/mine', authRequired, (req, res) => {
   // Three sources of notifications for a user:

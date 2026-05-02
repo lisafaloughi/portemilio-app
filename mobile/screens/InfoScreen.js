@@ -13,7 +13,7 @@ const TABS = [
   { key: 'contact', label: 'Contact', icon: 'message-text-outline' },
 ];
 
-const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing']);
+const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing', 'processing', 'out_for_delivery']);
 const LIVE_BOOKING_STATUSES = new Set(['pending', 'confirmed']);
 
 const HOTEL_PHONE = '+961 9 933 300';
@@ -329,14 +329,16 @@ function EmptyState({ icon, text }) {
 
 function StatusChip({ s }) {
   const map = {
-    pending: ['#fff3cd', '#856404'],
-    preparing: ['#fde2b3', '#8a5a00'],
-    confirmed: ['#d4edda', '#155724'],
+    pending:           ['#fff3cd', '#856404', 'Pending'],
+    preparing:         ['#fde2b3', '#8a5a00', 'Preparing'],
+    processing:        ['#fde2b3', '#8a5a00', 'Processing'],
+    out_for_delivery:  ['#cce5ff', '#004085', 'On the way'],
+    confirmed:         ['#d4edda', '#155724', 'Confirmed'],
   };
-  const [bg, fg] = map[s] || ['#eee', '#444'];
+  const [bg, fg, label] = map[s] || ['#eee', '#444', s];
   return (
     <View style={{ backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 }}>
-      <Text style={{ color: fg, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>{s}</Text>
+      <Text style={{ color: fg, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>{label}</Text>
     </View>
   );
 }
