@@ -22,7 +22,7 @@ const ITEMS = [
   { key: 'legal', icon: 'file-document-outline', title: 'Legal', subtitle: 'Terms & privacy' },
 ];
 
-export default function SideDrawer({ visible, onClose, navigation }) {
+export default function SideDrawer({ visible, onClose, navigation, unreadCount = 0 }) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const slide = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -83,20 +83,26 @@ export default function SideDrawer({ visible, onClose, navigation }) {
         <View style={styles.divider} />
 
         <View style={{ flex: 1 }}>
-          {ITEMS.map(item => (
-            <Pressable
-              key={item.key}
-              style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.border + '80' }]}
-              onPress={() => handleItem(item.key)}
-            >
-              <MaterialCommunityIcons name={item.icon} size={22} color={colors.accent} style={{ marginRight: 16 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>{item.title}</Text>
-                {item.subtitle ? <Text style={styles.rowSubtitle}>{item.subtitle}</Text> : null}
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} />
-            </Pressable>
-          ))}
+          {ITEMS.map(item => {
+            const showBadge = item.key === 'notifications' && unreadCount > 0;
+            return (
+              <Pressable
+                key={item.key}
+                style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.border + '80' }]}
+                onPress={() => handleItem(item.key)}
+              >
+                <View style={{ marginRight: 16 }}>
+                  <MaterialCommunityIcons name={item.icon} size={22} color={colors.accent} />
+                  {showBadge && <View style={styles.badge} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>{item.title}</Text>
+                  {item.subtitle ? <Text style={styles.rowSubtitle}>{item.subtitle}</Text> : null}
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} />
+              </Pressable>
+            );
+          })}
         </View>
 
       </Animated.View>
@@ -160,4 +166,15 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
   rowSubtitle: { fontSize: 13, color: colors.subtle, marginTop: 2 },
   chevron: { fontSize: 22, color: colors.muted },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#e03030',
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+  },
 });

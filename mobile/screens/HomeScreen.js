@@ -265,6 +265,7 @@ export default function HomeScreen({ navigation }) {
   const [platOpen, setPlatOpen] = useState(false);
   const [platQty, setPlatQty] = useState(1);
   const [hasLiveRequests, setHasLiveRequests] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
@@ -298,14 +299,16 @@ export default function HomeScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        const [orders, bookings] = await Promise.all([
+        const [orders, bookings, notifs] = await Promise.all([
           api.myDeliveries().catch(() => []),
           api.myBookings().catch(() => []),
+          isGuest ? Promise.resolve([]) : api.myNotifications().catch(() => []),
         ]);
         const live =
           orders.some(o => LIVE_ORDER_STATUSES.has(o.status)) ||
           bookings.some(b => LIVE_BOOKING_STATUSES.has(b.status));
         setHasLiveRequests(live);
+        setUnreadCount(notifs.filter(n => !n.read).length);
       })();
     }, [])
   );
@@ -452,6 +455,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.heroTopRow}>
             <Pressable style={styles.headerBtn} onPress={() => setDrawerOpen(true)}>
               <MaterialCommunityIcons name="menu" size={20} color="#fff" />
+              {unreadCount > 0 && <View style={styles.menuBadge} />}
             </Pressable>
             <View style={styles.heroTopRight}>
               <Pressable
@@ -849,6 +853,7 @@ export default function HomeScreen({ navigation }) {
         visible={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         navigation={navigation}
+        unreadCount={unreadCount}
       />
     </View>
   );
@@ -958,6 +963,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
     borderWidth: 1.5,
     borderColor: colors.accent,
+  },
+  menuBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#e03030',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.85)',
   },
   section: {
     marginTop: 32,

@@ -111,7 +111,7 @@ export default function MarinaScreen({ navigation }) {
             style={({ pressed }) => [styles.extraCard, pressed && { opacity: 0.92 }]}
           >
             <ImageBackground
-              source={PLACEHOLDER}
+              source={require('../assets/maritime_academy.png')}
               style={StyleSheet.absoluteFill}
               imageStyle={{ borderRadius: radius.lg }}
             >

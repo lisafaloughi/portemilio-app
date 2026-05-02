@@ -1,5 +1,5 @@
 import React, { useCallback, useLayoutEffect, useState } from 'react';
-import { View, Text, Linking, Pressable, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, Linking, Pressable, StyleSheet, ScrollView, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -60,6 +60,8 @@ export default function InfoScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useLayoutEffect(() => {
     navigation?.setOptions({ headerShown: false });
@@ -78,6 +80,20 @@ export default function InfoScreen({ navigation }) {
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget || cancelling) return;
+    setCancelling(true);
+    try {
+      await api.cancelBooking(cancelTarget.id);
+      setCancelTarget(null);
+      load();
+    } catch {
+      setCancelTarget(null);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={['top']}>
@@ -118,11 +134,42 @@ export default function InfoScreen({ navigation }) {
         ) : (
           <>
             {tab === 'orders' && <OrdersTab orders={orders} />}
-            {tab === 'bookings' && <BookingsTab bookings={bookings} />}
+            {tab === 'bookings' && <BookingsTab bookings={bookings} onCancel={setCancelTarget} />}
             {tab === 'contact' && <ContactTab />}
           </>
         )}
       </ScrollView>
+      {/* Cancel confirmation modal */}
+      <Modal transparent animationType="fade" visible={!!cancelTarget} onRequestClose={() => setCancelTarget(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <MaterialCommunityIcons name="calendar-remove-outline" size={38} color="#e03030" style={{ alignSelf: 'center', marginBottom: 8 }} />
+            <Text style={styles.modalTitle}>Cancel this booking?</Text>
+            {cancelTarget ? (() => {
+              const start = new Date(cancelTarget.start_time.includes('T') ? cancelTarget.start_time : cancelTarget.start_time.replace(' ', 'T') + 'Z');
+              const end = cancelTarget.end_time ? new Date(cancelTarget.end_time.includes('T') ? cancelTarget.end_time : cancelTarget.end_time.replace(' ', 'T') + 'Z') : null;
+              const dayLabel = start.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+              const startLabel = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              const endLabel = end ? end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null;
+              return (
+                <Text style={styles.modalBody}>
+                  {cancelTarget.resource_name || humanize(cancelTarget.resource_type)}{'\n'}
+                  {dayLabel}{'\n'}
+                  {startLabel}{endLabel ? ` – ${endLabel}` : ''}
+                </Text>
+              );
+            })() : null}
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setCancelTarget(null)}>
+                <Text style={styles.modalBtnGhostText}>Keep it</Text>
+              </Pressable>
+              <Pressable style={[styles.modalBtn, styles.modalBtnDanger]} disabled={cancelling} onPress={confirmCancel}>
+                <Text style={styles.modalBtnPrimaryText}>{cancelling ? 'Cancelling…' : 'Cancel booking'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -187,25 +234,40 @@ function OrdersTab({ orders }) {
   );
 }
 
-function BookingsTab({ bookings }) {
+function BookingsTab({ bookings, onCancel }) {
   if (bookings.length === 0) {
     return <EmptyState icon="calendar-blank-outline" text="No upcoming bookings." />;
   }
   return (
     <>
-      {bookings.map(b => (
-        <Card key={b.id}>
-          <View style={{ padding: spacing.md }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={font.h3}>{b.resource_name || humanize(b.resource_type)}</Text>
-              <StatusChip s={b.status} />
+      {bookings.map(b => {
+        const start = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z');
+        const end = b.end_time ? new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z') : null;
+        const timeLabel = end
+          ? `${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+          : start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const dateLabel = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        return (
+          <Card key={b.id}>
+            <View style={{ padding: spacing.md }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={font.h3}>{b.resource_name || humanize(b.resource_type)}</Text>
+                <StatusChip s={b.status} />
+              </View>
+              <Text style={{ ...font.small, marginTop: 4 }}>{dateLabel} · {timeLabel}</Text>
+              {b.party_size ? <Text style={font.small}>Party of {b.party_size}</Text> : null}
+              {b.notes ? <Text style={{ ...font.small, marginTop: 4, fontStyle: 'italic' }}>"{b.notes}"</Text> : null}
+              <Pressable
+                style={styles.cancelBtn}
+                onPress={() => onCancel(b)}
+              >
+                <MaterialCommunityIcons name="calendar-remove-outline" size={14} color="#e03030" />
+                <Text style={styles.cancelBtnText}>Cancel booking</Text>
+              </Pressable>
             </View>
-            <Text style={{ ...font.small, marginTop: 4 }}>{new Date(b.start_time).toLocaleString()}</Text>
-            {b.party_size ? <Text style={font.small}>Party of {b.party_size}</Text> : null}
-            {b.notes ? <Text style={{ ...font.small, marginTop: 4, fontStyle: 'italic' }}>"{b.notes}"</Text> : null}
-          </View>
-        </Card>
-      ))}
+          </Card>
+        );
+      })}
     </>
   );
 }
@@ -354,4 +416,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e03030',
+  },
+  cancelBtnText: { fontSize: 12, fontWeight: '600', color: '#e03030' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+  },
+  modalTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: colors.accent,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.subtle,
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  modalActions: { flexDirection: 'row', gap: 10 },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  modalBtnGhost: {
+    backgroundColor: colors.bg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  modalBtnGhostText: { color: colors.text, fontWeight: '600', fontSize: 14 },
+  modalBtnDanger: { backgroundColor: '#e03030' },
+  modalBtnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

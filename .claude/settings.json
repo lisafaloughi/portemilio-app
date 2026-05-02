@@ -8,7 +8,12 @@
       "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" --max-time 4 http://10.29.129.98:4000/api/settings/welcome_message)",
       "Bash(grep -n \"SideDrawer\\\\b\\\\|<View style={{ flex: 1, backgroundColor: colors.bg\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/HomeScreen.js)",
       "Bash(grep -B2 -A5 \"absoluteFill, { opacity\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/PoolsScreen.js)",
-      "Bash(grep -nE \"HERO_HEIGHT|setInterval|absoluteFill, \\\\{ opacity|fontSize: 30|fontSize: 28\" /Users/lisafaloughi/Desktop/Portemilio/mobile/components/ServiceListPage.js)"
+      "Bash(grep -nE \"HERO_HEIGHT|setInterval|absoluteFill, \\\\{ opacity|fontSize: 30|fontSize: 28\" /Users/lisafaloughi/Desktop/Portemilio/mobile/components/ServiceListPage.js)",
+      "Bash(curl -sS -X POST http://localhost:4000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@portemilio.com\",\"password\":\"admin123\"}')",
+      "Bash(xargs kill *)",
+      "Bash(lsof -ti:4000)",
+      "Bash(grep -n \"calRow\\\\|HOURS.map\\\\|HOURS\\\\.map\\\\|cal-cell\\\\|cellPast\\\\|Pressable\\\\s*$\\\\|cellMine\\\\|cellBooked\\\\|cellWidth = \\(SCREEN_W\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/TennisScreen.js)",
+      "Bash(grep -n \"Tap a slot for one hour\\\\|</>$\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/TennisScreen.js)"
     ]
   }
 }

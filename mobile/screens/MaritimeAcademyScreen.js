@@ -7,7 +7,7 @@ export default function MaritimeAcademyScreen({ navigation }) {
     <CategoryPage
       navigation={navigation}
       title="Maritime Academy"
-      images={[require('../assets/marina.png')]}
+      images={[require('../assets/maritime_academy.png')]}
       description="Professional Maritime Education & Training. Boat cruise certifications, safety courses, and crew training — taught by experienced instructors."
       rows={[
         {

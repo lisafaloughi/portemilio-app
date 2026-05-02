@@ -180,10 +180,13 @@ const insF = db.prepare(`
 `);
 for (const f of facilities) insF.run(f);
 
-// Restaurants & menus
+// Restaurants & menus — these mirror what the mobile app shows in mobile/data/venues.js.
+// `slug` is the stable id; the mobile keeps a local image map keyed by slug.
 const insR = db.prepare(`
-  INSERT INTO restaurants (name, cuisine, description, hours, location, phone, image_url, delivery)
-  VALUES (@name, @cuisine, @description, @hours, @location, @phone, @image_url, @delivery)
+  INSERT INTO restaurants (slug, name, cuisine, description, hours, location, phone, image_url, delivery,
+                           specialty, categories, address, highlights, map_pin_id, upcoming, sort_order)
+  VALUES (@slug, @name, @cuisine, @description, @hours, @location, @phone, @image_url, @delivery,
+          @specialty, @categories, @address, @highlights, @map_pin_id, @upcoming, @sort_order)
 `);
 const insMI = db.prepare(`
   INSERT INTO menu_items (restaurant_id, name, description, category, price, image_url, plat_du_jour, available)
@@ -192,79 +195,145 @@ const insMI = db.prepare(`
 
 const restaurants = [
   {
-    name: 'La Terrasse',
+    slug: 'la-reserve',
+    name: 'La Réserve',
     cuisine: 'Lebanese & Mediterranean',
-    description: 'Signature restaurant with a terrace overlooking the bay. Fresh seafood and mezze.',
-    hours: 'Daily 12:00 – 23:00',
-    location: 'Main level, sea side',
-    phone: '+961 9 640 611',
-    image_url: 'placeholder:terrasse',
-    delivery: 1,
+    specialty: 'Brunch on Sundays',
+    categories: 'restaurants',
+    description:
+      'A refined buffet experience for our most memorable Sunday brunches — the kind that runs into the afternoon.',
+    hours: 'Sundays 1 PM – 6 PM',
+    location: 'Seaside terrace',
+    address: 'Portemilio · Seaside terrace',
+    phone: '+9619123461',
+    highlights: JSON.stringify(['Sunday brunch · 1 PM – 6 PM', 'Buffet for $35/adult · $25/child', 'Reservations recommended']),
+    map_pin_id: 'la-reserve',
+    upcoming: 0,
+    delivery: 0,
+    sort_order: 1,
     menu: [
-      { category: 'Mezze', name: 'Hummus', description: 'Chickpea purée with tahini and olive oil', price: 8, plat_du_jour: 0 },
-      { category: 'Mezze', name: 'Tabbouleh', description: 'Parsley, tomato, bulgur, lemon', price: 9, plat_du_jour: 0 },
-      { category: 'Mezze', name: 'Moutabal', description: 'Smoked eggplant with tahini', price: 9, plat_du_jour: 0 },
-      { category: 'Grill', name: 'Mixed Grill', description: 'Shish taouk, kafta, lamb chops', price: 28, plat_du_jour: 1 },
-      { category: 'Seafood', name: 'Grilled Sea Bass', description: 'Fresh local catch, lemon, herbs', price: 34, plat_du_jour: 0 },
-      { category: 'Dessert', name: 'Baklava', description: 'Pistachio, honey syrup', price: 7, plat_du_jour: 0 },
-    ]
+      { category: 'Plat du jour', name: 'Mloukhiyeh', description: 'Slow-cooked greens, chicken, vermicelli rice, lemon', price: 18, plat_du_jour: 1 },
+      { category: 'Buffet', name: 'Sunday Brunch (Adult)', description: 'Full buffet · 1 PM – 6 PM', price: 35, plat_du_jour: 0 },
+      { category: 'Buffet', name: 'Sunday Brunch (Child)', description: 'Children up to 12', price: 25, plat_du_jour: 0 },
+    ],
   },
   {
-    name: 'Il Gusto',
-    cuisine: 'Italian',
-    description: 'Wood-fired pizza and homemade pasta. Family-friendly, indoor & outdoor seating.',
-    hours: 'Daily 12:00 – 23:30',
-    location: 'Ground floor, lobby wing',
-    phone: '+961 9 640 612',
-    image_url: 'placeholder:italian',
-    delivery: 1,
-    menu: [
-      { category: 'Pizza', name: 'Margherita', description: 'Tomato, mozzarella, basil', price: 14, plat_du_jour: 0 },
-      { category: 'Pizza', name: 'Quattro Formaggi', description: 'Four-cheese pizza', price: 17, plat_du_jour: 0 },
-      { category: 'Pasta', name: 'Tagliatelle Bolognese', description: 'Slow-cooked beef ragù', price: 19, plat_du_jour: 1 },
-      { category: 'Pasta', name: 'Penne Arrabbiata', description: 'Tomato, garlic, chili', price: 16, plat_du_jour: 0 },
-      { category: 'Dessert', name: 'Tiramisu', description: 'House-made classic', price: 8, plat_du_jour: 0 },
-    ]
-  },
-  {
+    slug: 'pool-bar',
     name: 'Pool Bar',
     cuisine: 'Snacks & Drinks',
-    description: 'Cocktails, fresh juices, burgers, sandwiches and salads at the pool.',
-    hours: 'Daily 10:00 – 20:00',
-    location: 'Outdoor pool deck',
-    phone: '+961 9 640 613',
-    image_url: 'placeholder:poolbar',
+    specialty: 'Eat & drink by the pool',
+    categories: 'restaurants,bars',
+    description: 'Simple lunches, fresh lemonade, and our signature Merry Cream.',
+    hours: 'Daily · 9 AM – sunset',
+    location: 'Olympic pool deck',
+    address: 'Olympic pool deck',
+    phone: '+9619123462',
+    highlights: JSON.stringify(['Daily · 9 AM – sunset']),
+    map_pin_id: 'pool-bar',
+    upcoming: 0,
     delivery: 1,
+    sort_order: 2,
     menu: [
       { category: 'Drinks', name: 'Fresh Lemonade', description: 'With mint', price: 5, plat_du_jour: 0 },
+      { category: 'Drinks', name: 'Merry Cream', description: 'Our signature creamy refresher', price: 7, plat_du_jour: 0 },
       { category: 'Drinks', name: 'Mojito', description: 'Rum, lime, mint, soda', price: 10, plat_du_jour: 0 },
       { category: 'Bites', name: 'Club Sandwich', description: 'Chicken, bacon, egg, fries', price: 14, plat_du_jour: 0 },
       { category: 'Bites', name: 'Cheeseburger', description: 'Beef patty, cheddar, fries', price: 16, plat_du_jour: 0 },
       { category: 'Bites', name: 'Caesar Salad', description: 'Romaine, grilled chicken, parmesan', price: 13, plat_du_jour: 0 },
-    ]
+    ],
   },
   {
-    name: 'Sakura',
-    cuisine: 'Japanese',
-    description: 'Sushi, sashimi, and hot Japanese dishes. Reservations recommended.',
-    hours: 'Tue – Sun 18:00 – 23:00',
-    location: 'Rooftop level',
-    phone: '+961 9 640 614',
-    image_url: 'placeholder:sakura',
-    delivery: 0,
+    slug: 'la-terrasse',
+    name: 'La Terrasse',
+    cuisine: 'Lebanese & Mediterranean',
+    specialty: 'Eat & drink with a view of the sea',
+    categories: 'restaurants',
+    description: 'Open-air dining suspended above the Mediterranean. The breeze, the horizon, and your plate.',
+    hours: 'Lunch & dinner',
+    location: 'Seafront terrace',
+    address: 'Seafront terrace',
+    phone: '+9619123463',
+    highlights: JSON.stringify(['Lunch & dinner']),
+    map_pin_id: 'la-terrasse',
+    upcoming: 0,
+    delivery: 1,
+    sort_order: 3,
     menu: [
-      { category: 'Sushi', name: 'Salmon Nigiri (2 pc)', description: '', price: 9, plat_du_jour: 0 },
-      { category: 'Sushi', name: 'Rainbow Roll', description: 'Assorted sashimi over California roll', price: 22, plat_du_jour: 0 },
-      { category: 'Hot', name: 'Chicken Teriyaki', description: 'Grilled chicken, teriyaki glaze, rice', price: 21, plat_du_jour: 0 },
-      { category: 'Hot', name: 'Beef Tataki', description: 'Seared beef, ponzu sauce', price: 26, plat_du_jour: 0 },
-    ]
+      { category: 'Mezze', name: 'Hummus', description: 'Chickpea purée with tahini and olive oil', price: 8, plat_du_jour: 0 },
+      { category: 'Mezze', name: 'Tabbouleh', description: 'Parsley, tomato, bulgur, lemon', price: 9, plat_du_jour: 0 },
+      { category: 'Mezze', name: 'Moutabal', description: 'Smoked eggplant with tahini', price: 9, plat_du_jour: 0 },
+      { category: 'Grill', name: 'Mixed Grill', description: 'Shish taouk, kafta, lamb chops', price: 28, plat_du_jour: 0 },
+      { category: 'Seafood', name: 'Grilled Sea Bass', description: 'Fresh local catch, lemon, herbs', price: 34, plat_du_jour: 0 },
+      { category: 'Dessert', name: 'Baklava', description: 'Pistachio, honey syrup', price: 7, plat_du_jour: 0 },
+    ],
+  },
+  {
+    slug: 'fellinis',
+    name: "Fellini's",
+    cuisine: 'Lebanese · Breakfast',
+    specialty: 'Breakfast buffet',
+    categories: 'restaurants',
+    description:
+      'Where mornings begin — a generous Lebanese buffet, fresh pastries, eggs to order, and anything worth waking up for.',
+    hours: 'Breakfast 7 – 11 AM',
+    location: '1st floor · Lobby level',
+    address: '1st floor · Lobby level',
+    phone: '+9619123464',
+    highlights: JSON.stringify([
+      'Breakfast Buffet · 7 – 11 AM',
+      '$25 per person — pay at reception',
+      'A la carte options also available',
+    ]),
+    map_pin_id: 'fellini',
+    upcoming: 0,
+    delivery: 0,
+    sort_order: 4,
+    menu: [],
+  },
+  {
+    slug: 'khuans-bar',
+    name: "Khuan's Bar",
+    cuisine: 'Bar · Live music',
+    specialty: 'Piano nights · pool table',
+    categories: 'bars',
+    description:
+      'A classic piano bar for slow nights. Sink into the leather, rack up a game, listen to the music.',
+    hours: 'Evenings · 6 PM – late',
+    location: 'Lobby level',
+    address: 'Lobby level',
+    phone: '+9619123465',
+    highlights: JSON.stringify(['Evenings · 6 PM – late', 'Live piano · Late-night drinks & games']),
+    map_pin_id: 'khuans-bar',
+    upcoming: 0,
+    delivery: 0,
+    sort_order: 5,
+    menu: [],
+  },
+  {
+    slug: 'sunset-bar',
+    name: 'Sunset Bar',
+    cuisine: 'Bar',
+    specialty: 'Coming soon · Sunsets & cocktails',
+    categories: 'bars',
+    description: 'Light bites and fresh drinks, with front-row sunset views.',
+    hours: 'Opening soon',
+    location: 'Sea deck near the tennis courts',
+    address: 'Sea deck near the tennis courts',
+    phone: null,
+    highlights: JSON.stringify(['Opening soon']),
+    map_pin_id: 'sunset-bar',
+    upcoming: 1,
+    delivery: 0,
+    sort_order: 6,
+    menu: [],
   },
 ];
 
 for (const r of restaurants) {
   const { menu, ...rest } = r;
-  const info = insR.run(rest);
-  for (const m of menu) {
+  const restaurantRow = { image_url: null, ...rest };
+  const info = insR.run(restaurantRow);
+  for (const m of menu || []) {
     insMI.run({
       restaurant_id: info.lastInsertRowid,
       name: m.name,

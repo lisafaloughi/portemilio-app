@@ -6,11 +6,12 @@ import {
   ScrollView,
   Image,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius } from '../theme';
-import { VENUES } from '../data/venues';
+import { useVenues } from '../data/venues';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -29,10 +30,11 @@ const labelFor = (venue) =>
 export default function RestaurantsScreen({ navigation, route }) {
   const initialFilter = route?.params?.filter || 'all';
   const [filter, setFilter] = useState(initialFilter);
+  const { venues: allVenues, loading } = useVenues();
 
   const venues = useMemo(
-    () => (filter === 'all' ? VENUES : VENUES.filter(v => v.categories.includes(filter))),
-    [filter]
+    () => (filter === 'all' ? allVenues : allVenues.filter(v => v.categories.includes(filter))),
+    [filter, allVenues]
   );
 
   return (
@@ -64,6 +66,11 @@ export default function RestaurantsScreen({ navigation, route }) {
         contentContainerStyle={{ paddingBottom: 40, paddingTop: 4 }}
         showsVerticalScrollIndicator={false}
       >
+        {loading && !venues.length ? (
+          <View style={{ paddingVertical: 60, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : null}
         {venues.map(v => (
           <Pressable
             key={v.id}

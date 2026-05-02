@@ -137,5 +137,51 @@ function hasColumn(table, column) {
 if (!hasColumn('users', 'birthday')) {
   db.exec(`ALTER TABLE users ADD COLUMN birthday TEXT`);
 }
+if (!hasColumn('users', 'status')) {
+  // 'approved' default keeps existing accounts working; new registrations with a unit number
+  // will be inserted as 'pending' by the register endpoint.
+  db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'`);
+  db.exec(`UPDATE users SET status = 'approved' WHERE status IS NULL`);
+}
+if (!hasColumn('deliveries', 'scheduled_for')) {
+  db.exec(`ALTER TABLE deliveries ADD COLUMN scheduled_for TEXT`);
+}
+if (!hasColumn('deliveries', 'room_number')) {
+  db.exec(`ALTER TABLE deliveries ADD COLUMN room_number TEXT`);
+}
+if (!hasColumn('deliveries', 'chalet_number')) {
+  db.exec(`ALTER TABLE deliveries ADD COLUMN chalet_number TEXT`);
+}
+if (!hasColumn('notifications', 'audience')) {
+  // 'all' | 'registered' | 'targeted'
+  db.exec(`ALTER TABLE notifications ADD COLUMN audience TEXT DEFAULT 'all'`);
+}
+if (!hasColumn('notifications', 'recipient_ids')) {
+  // For targeted sends: comma-separated user ids surrounded by commas (e.g. ",1,5,8,")
+  // so the per-user feed query can do a cheap LIKE match.
+  db.exec(`ALTER TABLE notifications ADD COLUMN recipient_ids TEXT`);
+}
+if (!hasColumn('notifications', 'recipient_names')) {
+  db.exec(`ALTER TABLE notifications ADD COLUMN recipient_names TEXT`);
+}
+if (!hasColumn('bookings', 'reminder_sent')) {
+  db.exec(`ALTER TABLE bookings ADD COLUMN reminder_sent INTEGER DEFAULT 0`);
+}
+
+// Restaurants — additional fields so admin can edit the same content the app shows.
+for (const [col, type] of [
+  ['slug', 'TEXT'],
+  ['specialty', 'TEXT'],
+  ['categories', 'TEXT'],     // comma-separated: 'restaurants,bars'
+  ['address', 'TEXT'],
+  ['highlights', 'TEXT'],     // JSON array of strings
+  ['map_pin_id', 'TEXT'],
+  ['upcoming', 'INTEGER DEFAULT 0'],
+  ['sort_order', 'INTEGER DEFAULT 0'],
+]) {
+  if (!hasColumn('restaurants', col)) {
+    db.exec(`ALTER TABLE restaurants ADD COLUMN ${col} ${type}`);
+  }
+}
 
 module.exports = db;

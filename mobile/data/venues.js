@@ -1,127 +1,116 @@
-const LA_RESERVE_IMGS = [
-  require('../assets/restaurants/la_reserve.jpeg'),
-  require('../assets/restaurants/lareserve1.png'),
-  require('../assets/restaurants/lareserve2.png'),
-];
-const POOL_BAR_IMGS = [
-  require('../assets/restaurants/poolbar1.jpg'),
-  require('../assets/restaurants/poolbar2.jpg'),
-];
-const LA_TERRASSE_IMGS = [
-  require('../assets/restaurants/laterrasse1.jpg'),
-  require('../assets/restaurants/laterrasse2.jpg'),
-];
-const FELLINIS_IMGS = [
-  require('../assets/restaurants/felinis1.jpg'),
-  require('../assets/restaurants/felinis2.jpg'),
-  require('../assets/restaurants/felinis3.jpg'),
-];
-const KHUANS_IMGS = [
-  require('../assets/restaurants/khuans1.jpg'),
-  require('../assets/restaurants/khuans2.jpg'),
-  require('../assets/restaurants/khuans3.jpeg'),
-  require('../assets/restaurants/khuans4.jpg'),
-  require('../assets/restaurants/khuans5.png'),
-];
-const SUNSET_IMGS = [
-  require('../assets/restaurants/sunsetbar.jpg'),
-];
+// Venues are managed by the admin portal — this module fetches them from the API
+// and merges in the local image bundle (images stay in the app to avoid network round-trips
+// and so admin doesn't need to deal with uploads).
 
-export const VENUES = [
-  {
-    id: 'la-reserve',
-    name: 'La Réserve',
-    categories: ['restaurants'],
-    specialty: 'Brunch on Sundays',
-    image: LA_RESERVE_IMGS[0],
-    images: LA_RESERVE_IMGS,
-    description:
-      'A refined buffet experience for our most memorable Sunday brunches — the kind that runs into the afternoon.',
-    highlights: ['Sunday brunch · 1 PM – 6 PM', 'Buffet for $35/adult · $25/child', 'Reservations recommended'],
-    address: 'Portemilio · Seaside terrace',
-    phone: '+9619123461',
-    menuUrl: null,
-    mapPinId: 'la-reserve',
-  },
-  {
-    id: 'pool-bar',
-    name: 'Pool Bar',
-    categories: ['restaurants', 'bars'],
-    specialty: 'Eat & drink by the pool',
-    image: POOL_BAR_IMGS[0],
-    images: POOL_BAR_IMGS,
-    description:
-      'Simple lunches, fresh lemonade, and our signature Merry Cream.',
-    highlights: ['Daily · 9 AM – sunset'],
-    address: 'Olympic pool deck',
-    phone: '+9619123462',
-    menuUrl: null,
-    mapPinId: 'pool-bar',
-  },
-  {
-    id: 'la-terrasse',
-    name: 'La Terrasse',
-    categories: ['restaurants'],
-    specialty: 'Eat & drink with a view of the sea',
-    image: LA_TERRASSE_IMGS[0],
-    images: LA_TERRASSE_IMGS,
-    description:
-      'Open-air dining suspended above the Mediterranean. The breeze, the horizon, and your plate.',
-    highlights: ['Lunch & dinner'],
-    address: 'Seafront terrace',
-    phone: '+9619123463',
-    menuUrl: null,
-    mapPinId: 'la-terrasse',
-  },
-  {
-    id: 'fellinis',
-    name: "Fellini's",
-    categories: ['restaurants'],
-    specialty: 'Breakfast buffet',
-    image: FELLINIS_IMGS[0],
-    images: FELLINIS_IMGS,
-    description:
-      'Where mornings begin — a generous Lebanese buffet, fresh pastries, eggs to order, and anything worth waking up for.',
-    highlights: [
-      'Breakfast Buffet · 7 – 11 AM',
-      '$25 per person — pay at reception',
-      'A la carte options also available',
-    ],
-    address: '1st floor · Lobby level',
-    phone: '+9619123464',
-    menuUrl: null,
-    mapPinId: 'fellini',
-  },
-  {
-    id: 'khuans-bar',
-    name: "Khuan's Bar",
-    categories: ['bars'],
-    specialty: 'Piano nights · pool table',
-    image: KHUANS_IMGS[0],
-    images: KHUANS_IMGS,
-    description:
-      'A classic piano bar for slow nights. Sink into the leather, rack up a game, listen to the music.',
-    highlights: ['Evenings · 6 PM – late', 'Live piano · Late-night drinks & games'],
-    address: 'Lobby level',
-    phone: '+9619123465',
-    menuUrl: null,
-    mapPinId: 'khuans-bar',
-  },
-  {
-    id: 'sunset-bar',
-    name: 'Sunset Bar',
-    categories: ['bars'],
-    specialty: 'Coming soon · Sunsets & cocktails',
-    image: SUNSET_IMGS[0],
-    images: SUNSET_IMGS,
-    description:
-      "Light bites and fresh drinks, with front-row sunset views",
-    highlights: ['Opening soon'],
-    address: 'Sea deck near the tennis courts',
-    upcoming: true,
-    menuUrl: null,
-    mapPinId: 'sunset-bar',
-  },
-];
+import { useEffect, useState } from 'react';
+import { api } from '../api';
 
-export const venueById = (id) => VENUES.find(v => v.id === id);
+// Image bundle keyed by venue slug. Add a new entry here whenever the admin creates a venue
+// that should display images in the app.
+const VENUE_IMAGES = {
+  'la-reserve': [
+    require('../assets/restaurants/la_reserve.jpeg'),
+    require('../assets/restaurants/lareserve1.png'),
+    require('../assets/restaurants/lareserve2.png'),
+  ],
+  'pool-bar': [
+    require('../assets/restaurants/poolbar1.jpg'),
+    require('../assets/restaurants/poolbar2.jpg'),
+  ],
+  'la-terrasse': [
+    require('../assets/restaurants/laterrasse1.jpg'),
+    require('../assets/restaurants/laterrasse2.jpg'),
+  ],
+  'fellinis': [
+    require('../assets/restaurants/felinis1.jpg'),
+    require('../assets/restaurants/felinis2.jpg'),
+    require('../assets/restaurants/felinis3.jpg'),
+  ],
+  'khuans-bar': [
+    require('../assets/restaurants/khuans1.jpg'),
+    require('../assets/restaurants/khuans2.jpg'),
+    require('../assets/restaurants/khuans3.jpeg'),
+    require('../assets/restaurants/khuans4.jpg'),
+    require('../assets/restaurants/khuans5.png'),
+  ],
+  'sunset-bar': [
+    require('../assets/restaurants/sunsetbar.jpg'),
+  ],
+};
+
+let cache = null;
+let inflight = null;
+
+function normalize(row) {
+  const slug = row.slug || `r-${row.id}`;
+  const images = VENUE_IMAGES[slug] || [];
+  let highlights = [];
+  if (row.highlights) {
+    try { highlights = JSON.parse(row.highlights); } catch { highlights = []; }
+  }
+  return {
+    ...row,
+    id: slug,
+    db_id: row.id,
+    image: images[0] || null,
+    images,
+    categories: (row.categories || '').split(',').map(s => s.trim()).filter(Boolean),
+    highlights,
+    upcoming: !!row.upcoming,
+    mapPinId: row.map_pin_id || slug,
+  };
+}
+
+export async function loadVenues({ force = false } = {}) {
+  if (cache && !force) return cache;
+  if (!inflight) {
+    inflight = api.restaurants()
+      .then(rows => { cache = rows.map(normalize); inflight = null; return cache; })
+      .catch(err => { inflight = null; throw err; });
+  }
+  return inflight;
+}
+
+export function useVenues() {
+  const [venues, setVenues] = useState(cache || []);
+  const [loading, setLoading] = useState(!cache);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (cache) { setLoading(false); return; }
+    loadVenues()
+      .then(data => { if (!cancelled) { setVenues(data); setLoading(false); } })
+      .catch(e => { if (!cancelled) { setError(e); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, []);
+
+  return { venues, loading, error, reload: () => loadVenues({ force: true }).then(setVenues) };
+}
+
+export function useVenue(id) {
+  const [venue, setVenue] = useState(cache ? cache.find(v => v.id === id) : null);
+  const [loading, setLoading] = useState(!venue);
+  useEffect(() => {
+    let cancelled = false;
+    if (cache) {
+      setVenue(cache.find(v => v.id === id) || null);
+      setLoading(false);
+      return;
+    }
+    loadVenues()
+      .then(data => { if (!cancelled) { setVenue(data.find(v => v.id === id) || null); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+  return { venue, loading };
+}
+
+// Synchronous lookup (cache-only). Returns null if the cache hasn't been hydrated yet.
+export function venueById(id) {
+  if (!cache) return null;
+  return cache.find(v => v.id === id) || null;
+}
+
+// Static fallback list — empty by default; consumers should prefer useVenues().
+export const VENUES = [];

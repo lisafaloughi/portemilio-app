@@ -31,5 +31,8 @@
     "react-native-web": "^0.21.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "expo-module-scripts": "^55.0.2"
+  }
 }

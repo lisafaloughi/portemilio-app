@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -47,6 +48,7 @@ export default function RegisterScreen({ navigation }) {
   });
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState('');
   const set = (k) => (v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   useLayoutEffect(() => {
@@ -82,8 +84,15 @@ export default function RegisterScreen({ navigation }) {
         chalet_number: form.unit_type === 'chalet' ? form.unit_number : '',
         birthday: birthdayIso || undefined,
       };
-      const { token, user } = await api.register(payload);
-      await signIn(token, user);
+      const result = await api.register(payload);
+      if (result?.pending) {
+        setPendingMessage(
+          result.message ||
+            'Your account is awaiting verification by reception. You will be able to sign in once approved.'
+        );
+        return;
+      }
+      await signIn(result.token, result.user);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -93,6 +102,38 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: SPLASH_BG }}>
+      <Modal
+        transparent
+        animationType="fade"
+        visible={!!pendingMessage}
+        onRequestClose={() => {
+          setPendingMessage('');
+          navigation.goBack();
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.pendingCard}>
+            <MaterialCommunityIcons
+              name="email-check-outline"
+              size={42}
+              color={colors.accent}
+              style={{ marginBottom: 12 }}
+            />
+            <Text style={styles.pendingTitle}>Account submitted</Text>
+            <Text style={styles.pendingBody}>{pendingMessage}</Text>
+            <Pressable
+              style={styles.pendingBtn}
+              onPress={() => {
+                setPendingMessage('');
+                navigation.goBack();
+              }}
+            >
+              <Text style={styles.pendingBtnText}>Back to sign in</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -235,7 +276,7 @@ export default function RegisterScreen({ navigation }) {
           </Text>
           <TextInput
             style={[styles.input, styles.inputShort]}
-            keyboardType="number-pad"
+            autoCapitalize="characters"
             maxLength={6}
             value={form.unit_number}
             onChangeText={set('unit_number')}
@@ -358,5 +399,46 @@ const styles = StyleSheet.create({
   },
   unitPillTextActive: {
     color: '#fff',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  pendingCard: {
+    backgroundColor: SPLASH_BG,
+    borderRadius: 18,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 360,
+  },
+  pendingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.accent,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  pendingBody: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.subtle,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  pendingBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: radius.md,
+    backgroundColor: colors.accent,
+  },
+  pendingBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });

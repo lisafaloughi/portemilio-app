@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // IMPORTANT: set this to your LAN IP (e.g. 192.168.1.20) so your phone can reach the backend.
 // For iOS simulator / web, localhost is fine. For Android emulator, use 10.0.2.2.
-export const API_BASE_URL = 'http://localhost:4000/api';
-// export const API_BASE_URL = 'http://10.29.129.98:4000/api';
+// export const API_BASE_URL = 'http://localhost:4000/api';
+export const API_BASE_URL = 'http://10.29.129.98:4000/api';
 
 let authToken = null;
 
@@ -55,6 +55,8 @@ export const api = {
   createBooking: (payload) => request('/bookings', { method: 'POST', body: payload }),
   myBookings: () => request('/bookings/mine'),
   cancelBooking: (id) => request(`/bookings/${id}`, { method: 'DELETE' }),
+  availability: (resource, from, to) =>
+    request(`/availability/${resource}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 
   // Deliveries
   createDelivery: (payload) => request('/deliveries', { method: 'POST', body: payload }),

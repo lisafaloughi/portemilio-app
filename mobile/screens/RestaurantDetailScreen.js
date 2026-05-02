@@ -1,9 +1,20 @@
 import React from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import VenueDetailPage from '../components/VenueDetailPage';
-import { venueById } from '../data/venues';
+import { useVenue } from '../data/venues';
+import { colors } from '../theme';
 
 export default function RestaurantDetailScreen({ navigation, route }) {
-  const venue = venueById(route?.params?.id);
+  const id = route?.params?.id;
+  const { venue, loading } = useVenue(id);
+
+  if (loading && !venue) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
 
   if (!venue) {
     return (
