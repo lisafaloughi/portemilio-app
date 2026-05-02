@@ -714,9 +714,11 @@ export default function TennisScreen({ navigation }) {
             <MaterialCommunityIcons name="calendar-check-outline" size={42} color={colors.accent} style={{ alignSelf: 'center', marginBottom: 8 }} />
             <Text style={styles.modalTitle}>Booking cancelled</Text>
             <Text style={styles.modalBody}>The court slot has been released and is now available again.</Text>
-            <Pressable style={[styles.modalBtn, styles.modalBtnPrimary, { marginTop: 4 }]} onPress={() => setCancelSuccessVisible(false)}>
-              <Text style={styles.modalBtnPrimaryText}>Done</Text>
-            </Pressable>
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={() => setCancelSuccessVisible(false)}>
+                <Text style={styles.modalBtnPrimaryText}>Done</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -735,9 +737,11 @@ export default function TennisScreen({ navigation }) {
             <Text style={styles.modalBody}>
               You'll get a reminder 30 minutes before your slot. See your booking under Active Requests.
             </Text>
-            <Pressable style={[styles.modalBtn, styles.modalBtnPrimary, { marginTop: 4 }]} onPress={() => setBookingSuccessVisible(false)}>
-              <Text style={styles.modalBtnPrimaryText}>Got it</Text>
-            </Pressable>
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={() => setBookingSuccessVisible(false)}>
+                <Text style={styles.modalBtnPrimaryText}>Got it</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1046,6 +1050,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: radius.md,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBtnGhost: {
     backgroundColor: colors.bg,
