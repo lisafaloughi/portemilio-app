@@ -22,7 +22,7 @@ import { colors, radius } from '../theme';
 import SideDrawer from '../components/SideDrawer';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { ServingFoodIcon } from '@hugeicons/core-free-icons';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 import { api } from '../api';
 
 const HOTEL_PHONE = '+9619636000';

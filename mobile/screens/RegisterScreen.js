@@ -16,7 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, ErrorText } from '../components/ui';
 import { colors, spacing, radius } from '../theme';
 import { api } from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 
 const SPLASH_BG = '#E8E1CB';
 

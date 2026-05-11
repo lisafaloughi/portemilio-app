@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { HeaderScreen } from '../components/ui';
 import { colors, spacing, radius, font } from '../theme';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 
 const SECTIONS = [
   {

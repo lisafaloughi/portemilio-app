@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { HeaderScreen, Card, Loading } from '../components/ui';
 import { colors, spacing, font, radius } from '../theme';
 import { api } from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 
 function formatStamp(s) {
   if (!s) return '';

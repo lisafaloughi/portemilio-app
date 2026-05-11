@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, ErrorText } from '../components/ui';
 import { colors, spacing, radius, font } from '../theme';
 import { api } from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 
 const SPLASH_BG = '#E8E1CB';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');

@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { HeaderScreen, Card, Loading } from '../components/ui';
 import { colors, spacing, font } from '../theme';
 import { api } from '../api';
-import { useCart } from '../App';
+import { useCart } from '../context';
 
 export default function MyOrdersScreen({ navigation }) {
   const [items, setItems] = useState([]);

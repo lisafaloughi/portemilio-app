@@ -3,7 +3,7 @@ import { View, Text, Pressable, Alert, TextInput, StyleSheet } from 'react-nativ
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { HeaderScreen, Button } from '../components/ui';
 import { colors, spacing, radius, font } from '../theme';
-import { useCart, useAuth } from '../App';
+import { useCart, useAuth } from '../context';
 import { api } from '../api';
 
 export default function CartScreen({ navigation }) {

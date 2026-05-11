@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, createContext, useContext } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Image } from 'react-native';
@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { loadToken, setToken, api } from './api';
 import { colors } from './theme';
+import { AuthCtx, CartCtx } from './context';
 
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -65,10 +66,6 @@ import LanguageScreen from './screens/LanguageScreen';
 
 const Stack = createNativeStackNavigator();
 
-export const AuthCtx = createContext(null);
-export const CartCtx = createContext(null);
-export const useAuth = () => useContext(AuthCtx);
-export const useCart = () => useContext(CartCtx);
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),

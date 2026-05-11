@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, Alert, Pressable } from 'react-nativ
 import { HeaderScreen, Button } from '../components/ui';
 import { colors, spacing, font } from '../theme';
 import { api } from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 
 function splitName(full = '') {
   const parts = full.trim().split(/\s+/);

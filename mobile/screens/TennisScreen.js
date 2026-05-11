@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 import { api } from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../context';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
 const HERO_IMAGES = [require('../assets/tennis.jpg')];
