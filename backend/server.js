@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const multer = require('multer');
 const db = require('./db');
 const { hashPassword, verifyPassword, signToken, authRequired, adminRequired } = require('./auth');
 
@@ -12,6 +13,8 @@ app.use(morgan('dev'));
 
 // Serve admin portal static files
 app.use('/admin', express.static(path.join(__dirname, 'public')));
+// Serve uploaded images / PDFs publicly
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 const api = express.Router();
 
@@ -103,9 +106,7 @@ api.get('/restaurants/:id', (req, res) => {
 
 api.get('/menu/plat-du-jour', (_, res) => {
   res.json(db.prepare(`
-    SELECT mi.*, r.name as restaurant_name
-    FROM menu_items mi JOIN restaurants r ON r.id = mi.restaurant_id
-    WHERE mi.plat_du_jour = 1 AND mi.available = 1
+    SELECT * FROM plat_du_jour_items WHERE is_today = 1 ORDER BY title
   `).all());
 });
 
@@ -243,6 +244,26 @@ api.get('/settings/:key', (req, res) => {
 const admin = express.Router();
 admin.use(adminRequired);
 
+// --- File upload ---
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: path.join(__dirname, 'public', 'uploads'),
+    filename: (_, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_, file, cb) => {
+    const ok = /^image\/(jpeg|png|webp|gif)|application\/pdf$/.test(file.mimetype);
+    cb(ok ? null : new Error('Only images and PDFs allowed'), ok);
+  },
+});
+admin.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  res.json({ url: `/uploads/${req.file.filename}` });
+});
+
 // --- Facilities CRUD ---
 admin.get('/facilities', (_, res) => res.json(db.prepare('SELECT * FROM facilities').all()));
 admin.post('/facilities', (req, res) => {
@@ -276,14 +297,16 @@ admin.get('/restaurants', (_, res) => res.json(db.prepare('SELECT * FROM restaur
 admin.post('/restaurants', (req, res) => {
   const r = db.prepare(`
     INSERT INTO restaurants (slug, name, cuisine, description, hours, location, phone, image_url, delivery,
-                             specialty, categories, address, highlights, map_pin_id, upcoming, sort_order)
+                             specialty, categories, address, highlights, map_pin_id, upcoming, sort_order,
+                             image_urls, menu_pdf_url)
     VALUES (@slug, @name, @cuisine, @description, @hours, @location, @phone, @image_url, @delivery,
-            @specialty, @categories, @address, @highlights, @map_pin_id, @upcoming, @sort_order)
+            @specialty, @categories, @address, @highlights, @map_pin_id, @upcoming, @sort_order,
+            @image_urls, @menu_pdf_url)
   `).run({
     delivery: 0, slug: null, specialty: null, categories: null, address: null,
     highlights: null, map_pin_id: null, upcoming: 0, sort_order: 0,
     description: null, hours: null, location: null, phone: null, image_url: null,
-    cuisine: null,
+    cuisine: null, image_urls: null, menu_pdf_url: null,
     ...req.body,
   });
   res.json({ id: r.lastInsertRowid });
@@ -303,7 +326,9 @@ admin.put('/restaurants/:id', (req, res) => {
       highlights=COALESCE(@highlights,highlights),
       map_pin_id=COALESCE(@map_pin_id,map_pin_id),
       upcoming=COALESCE(@upcoming,upcoming),
-      sort_order=COALESCE(@sort_order,sort_order)
+      sort_order=COALESCE(@sort_order,sort_order),
+      image_urls=@image_urls,
+      menu_pdf_url=@menu_pdf_url
     WHERE id=@id
   `).run({
     id: Number(req.params.id),
@@ -311,6 +336,7 @@ admin.put('/restaurants/:id', (req, res) => {
     location: null, phone: null, image_url: null, delivery: null,
     specialty: null, categories: null, address: null, highlights: null,
     map_pin_id: null, upcoming: null, sort_order: null,
+    image_urls: null, menu_pdf_url: null,
     ...b,
   });
   res.json({ ok: true });
@@ -351,6 +377,64 @@ admin.put('/menu-items/:id', (req, res) => {
 });
 admin.delete('/menu-items/:id', (req, res) => {
   db.prepare('DELETE FROM menu_items WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Plat du Jour items ---
+admin.get('/plat-du-jour', (_, res) => {
+  res.json(db.prepare('SELECT * FROM plat_du_jour_items ORDER BY title').all());
+});
+admin.post('/plat-du-jour', (req, res) => {
+  const { title, subtitle, description, price, image_url } = req.body || {};
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const r = db.prepare(`
+    INSERT INTO plat_du_jour_items (title, subtitle, description, price, image_url)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(title, subtitle || null, description || null, price || null, image_url || null);
+  res.json({ id: r.lastInsertRowid });
+});
+admin.put('/plat-du-jour/:id', (req, res) => {
+  const { title, subtitle, description, price, image_url, is_today } = req.body || {};
+  if (is_today !== undefined) {
+    db.prepare('UPDATE plat_du_jour_items SET is_today = ? WHERE id = ?').run(is_today, Number(req.params.id));
+  } else {
+    db.prepare(`
+      UPDATE plat_du_jour_items SET title=?, subtitle=?, description=?, price=?, image_url=? WHERE id=?
+    `).run(title || null, subtitle || null, description || null, price ?? null, image_url || null, Number(req.params.id));
+  }
+  res.json({ ok: true });
+});
+admin.delete('/plat-du-jour/:id', (req, res) => {
+  db.prepare('DELETE FROM plat_du_jour_items WHERE id = ?').run(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+// --- Activities (Today's Activities & Events) ---
+admin.get('/activities', (_, res) => {
+  res.json(db.prepare('SELECT * FROM activities ORDER BY title').all());
+});
+admin.post('/activities', (req, res) => {
+  const { title, subtitle, description, location, time_label, price, image_url } = req.body || {};
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const r = db.prepare(`
+    INSERT INTO activities (title, subtitle, description, location, time_label, price, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(title, subtitle || null, description || null, location || null, time_label || null, price ?? null, image_url || null);
+  res.json({ id: r.lastInsertRowid });
+});
+admin.put('/activities/:id', (req, res) => {
+  const { title, subtitle, description, location, time_label, price, image_url, is_today } = req.body || {};
+  if (is_today !== undefined) {
+    db.prepare('UPDATE activities SET is_today = ? WHERE id = ?').run(is_today, Number(req.params.id));
+  } else {
+    db.prepare(`
+      UPDATE activities SET title=?, subtitle=?, description=?, location=?, time_label=?, price=?, image_url=? WHERE id=?
+    `).run(title || null, subtitle || null, description || null, location || null, time_label || null, price ?? null, image_url || null, Number(req.params.id));
+  }
+  res.json({ ok: true });
+});
+admin.delete('/activities/:id', (req, res) => {
+  db.prepare('DELETE FROM activities WHERE id = ?').run(Number(req.params.id));
   res.json({ ok: true });
 });
 
@@ -670,6 +754,9 @@ admin.get('/dashboard', (_, res) => {
     restaurants: count('SELECT COUNT(*) c FROM restaurants'),
     facilities: count('SELECT COUNT(*) c FROM facilities'),
     events_upcoming: count(`SELECT COUNT(*) c FROM events WHERE datetime(start_time) >= datetime('now')`),
+    plat_du_jour_count: count(`SELECT COUNT(*) c FROM plat_du_jour_items WHERE is_today = 1`),
+    events_today: count(`SELECT COUNT(*) c FROM activities WHERE is_today = 1`),
+    notifications_total: count(`SELECT COUNT(*) c FROM notifications`),
   });
 });
 admin.get('/stats', (_, res) => {

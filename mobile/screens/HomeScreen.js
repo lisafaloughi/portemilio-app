@@ -30,16 +30,8 @@ const HOTEL_PHONE = '+9619636000';
 const LIVE_ORDER_STATUSES = new Set(['pending', 'preparing', 'processing', 'out_for_delivery']);
 const LIVE_BOOKING_STATUSES = new Set(['pending', 'confirmed']);
 
-const PLAT_DU_JOUR = {
-  id: 'plat-du-jour',
-  restaurant_id: 0,
-  name: 'Mloukhiyeh',
-  origin: "Today's Lebanese specialty",
-  description:
-    'A traditional Lebanese stew of jute leaves slow-cooked with tender chicken, served over saffron rice with toasted vermicelli, raw onions and warm pita bread.',
-  price: 18,
-  eta: '~30 min',
-};
+const PLAT_ETA = '~30 min';
+const PLAT_FALLBACK_IMG = require('../assets/mloukhiyeh.jpg');
 
 const { width } = Dimensions.get('window');
 const PADDING = 16;
@@ -263,7 +255,10 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [platOpen, setPlatOpen] = useState(false);
-  const [platQty, setPlatQty] = useState(1);
+  const [platQtyMap, setPlatQtyMap] = useState({});
+  const [platItems, setPlatItems] = useState([]);
+  const [platIndex, setPlatIndex] = useState(0);
+  const platScrollRef = useRef(null);
   const [hasLiveRequests, setHasLiveRequests] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -299,16 +294,19 @@ export default function HomeScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        const [orders, bookings, notifs] = await Promise.all([
+        const [orders, bookings, notifs, plats] = await Promise.all([
           api.myDeliveries().catch(() => []),
           api.myBookings().catch(() => []),
           isGuest ? Promise.resolve([]) : api.myNotifications().catch(() => []),
+          api.platDuJour().catch(() => []),
         ]);
         const live =
           orders.some(o => LIVE_ORDER_STATUSES.has(o.status)) ||
           bookings.some(b => LIVE_BOOKING_STATUSES.has(b.status));
         setHasLiveRequests(live);
         setUnreadCount(notifs.filter(n => !n.read).length);
+        setPlatItems(plats || []);
+        setPlatIndex(0);
       })();
     }, [])
   );
@@ -329,8 +327,11 @@ export default function HomeScreen({ navigation }) {
   };
 
   const openPlat = () => {
-    setPlatQty(1);
+    if (!platItems.length) return;
+    // Single dish: start at qty 1 (classic UX). Multiple dishes: start empty so user picks.
+    setPlatQtyMap(platItems.length === 1 ? { [platItems[0].id]: 1 } : {});
     setScheduleAt(null);
+    setPlatIndex(0);
     if (user?.chalet_number) {
       setDeliveryUnitType('chalet');
       setDeliveryUnitNumber(String(user.chalet_number));
@@ -388,13 +389,30 @@ export default function HomeScreen({ navigation }) {
     setReviewDismissed(true);
   };
 
+  const getQty = (id) => platQtyMap[id] || 0;
+  const setQty = (id, next) => setPlatQtyMap(m => ({ ...m, [id]: Math.max(0, next) }));
+  const totalQty = platItems.reduce((s, it) => s + getQty(it.id), 0);
+  const totalPrice = platItems.reduce(
+    (s, it) => s + (Number(it.price) || 0) * getQty(it.id),
+    0
+  );
+
   const handleOrder = async () => {
     if (ordering) return;
+    const selected = platItems
+      .filter(it => getQty(it.id) > 0)
+      .map(it => ({
+        id: `plat-${it.id}`,
+        name: it.title,
+        price: Number(it.price) || 0,
+        qty: getQty(it.id),
+      }));
+    if (!selected.length) {
+      Alert.alert('Nothing selected', 'Add at least one dish to your order.');
+      return;
+    }
     if (!deliveryUnitNumber) {
-      Alert.alert(
-        'Where to?',
-        'Please enter a room or chalet number for delivery.'
-      );
+      Alert.alert('Where to?', 'Please enter a room or chalet number for delivery.');
       return;
     }
     setOrdering(true);
@@ -406,27 +424,21 @@ export default function HomeScreen({ navigation }) {
         noteParts.push(`Scheduled for ${formatTime(scheduleAt)} today.`);
       }
       await api.createDelivery({
-        restaurant_id: PLAT_DU_JOUR.restaurant_id,
-        items: [
-          {
-            id: PLAT_DU_JOUR.id,
-            name: PLAT_DU_JOUR.name,
-            price: PLAT_DU_JOUR.price,
-            qty: platQty,
-          },
-        ],
+        restaurant_id: 0,
+        items: selected,
         notes: noteParts.join(' '),
         scheduled_for: scheduleAt ? scheduleAt.toISOString() : null,
         room_number: deliveryUnitType === 'room' ? deliveryUnitNumber : '',
         chalet_number: deliveryUnitType === 'chalet' ? deliveryUnitNumber : '',
       });
       setPlatOpen(false);
+      const summary = selected.map(s => `${s.qty} × ${s.name}`).join(', ');
       setTimeout(() => {
         Alert.alert(
           'Order placed',
           scheduleAt
-            ? `${platQty} × ${PLAT_DU_JOUR.name} scheduled for ${formatTime(scheduleAt)}. Track it in Active Requests.`
-            : `${platQty} × ${PLAT_DU_JOUR.name} ordered. Track it in Active Requests.`
+            ? `${summary} scheduled for ${formatTime(scheduleAt)}. Track it in Active Requests.`
+            : `${summary} ordered. Track it in Active Requests.`
         );
       }, 200);
     } catch (e) {
@@ -545,15 +557,17 @@ export default function HomeScreen({ navigation }) {
         </Pressable>
       )}
 
-      <Pressable
-        style={[
-          styles.platFab,
-          { bottom: insets.bottom + (reviewDismissed ? 30 : 110) },
-        ]}
-        onPress={openPlat}
-      >
-        <HugeiconsIcon icon={ServingFoodIcon} size={30} color={colors.accent} strokeWidth={1.6} />
-      </Pressable>
+      {platItems.length > 0 && (
+        <Pressable
+          style={[
+            styles.platFab,
+            { bottom: insets.bottom + (reviewDismissed ? 30 : 110) },
+          ]}
+          onPress={openPlat}
+        >
+          <HugeiconsIcon icon={ServingFoodIcon} size={30} color={colors.accent} strokeWidth={1.6} />
+        </Pressable>
+      )}
 
       <Modal
         visible={platOpen}
@@ -561,63 +575,132 @@ export default function HomeScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setPlatOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setPlatOpen(false)}>
-          <Pressable style={styles.modalCard} onPress={() => {}}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+          keyboardVerticalOffset={-220}
+        >
+          <Pressable style={styles.modalBackdropFill} onPress={() => setPlatOpen(false)} />
+          <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalEyebrow}>PLAT DU JOUR</Text>
-                <Text style={styles.modalTitle}>{PLAT_DU_JOUR.name}</Text>
-                <Text style={styles.modalSubtitle}>{PLAT_DU_JOUR.origin}</Text>
-              </View>
+              <Text style={styles.modalEyebrow}>PLAT DU JOUR</Text>
               <Pressable onPress={() => setPlatOpen(false)} hitSlop={10} style={styles.modalClose}>
                 <MaterialCommunityIcons name="close" size={20} color={colors.text} />
               </Pressable>
             </View>
 
-            <ImageBackground
-              source={require('../assets/mloukhiyeh.jpg')}
-              style={styles.modalImage}
-              imageStyle={{ borderRadius: radius.lg }}
-            />
-
-
-            <Text style={styles.modalDescription}>{PLAT_DU_JOUR.description}</Text>
-
-            <View style={styles.modalMetaRow}>
-              <View style={styles.metaChip}>
-                <MaterialCommunityIcons name="clock-outline" size={14} color={colors.subtle} />
-                <Text style={styles.metaText}>{PLAT_DU_JOUR.eta}</Text>
-              </View>
-              {isGuest ? (
-                <Text style={styles.modalPrice}>${PLAT_DU_JOUR.price}</Text>
-              ) : (
-                <View style={styles.priceGroup}>
-                  <View style={styles.qtyStepper}>
-                    <Pressable
-                      onPress={() => setPlatQty(q => Math.max(1, q - 1))}
-                      style={[styles.qtyStepBtn, platQty <= 1 && styles.qtyStepBtnDisabled]}
-                      disabled={platQty <= 1}
-                      hitSlop={6}
-                    >
-                      <MaterialCommunityIcons
-                        name="minus"
-                        size={18}
-                        color={platQty <= 1 ? colors.muted : colors.accent}
+            {platItems.length > 1 ? (
+              <>
+                <ScrollView
+                  ref={platScrollRef}
+                  horizontal
+                  pagingEnabled
+                  decelerationRate="fast"
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(e) => {
+                    const w = e.nativeEvent.layoutMeasurement.width;
+                    if (w > 0) {
+                      const idx = Math.round(e.nativeEvent.contentOffset.x / w);
+                      if (idx !== platIndex) setPlatIndex(idx);
+                    }
+                  }}
+                  style={styles.platScroll}
+                >
+                  {platItems.map((item) => (
+                    <View key={item.id} style={styles.platSlide}>
+                      <Text style={styles.modalTitle}>{item.title}</Text>
+                      {item.subtitle ? (
+                        <Text style={styles.modalSubtitle}>{item.subtitle}</Text>
+                      ) : null}
+                      <ImageBackground
+                        source={item.image_url ? { uri: item.image_url } : PLAT_FALLBACK_IMG}
+                        style={styles.modalImage}
+                        imageStyle={{ borderRadius: radius.lg }}
                       />
-                    </Pressable>
-                    <Text style={styles.qtyNum}>{platQty}</Text>
-                    <Pressable
-                      onPress={() => setPlatQty(q => q + 1)}
-                      style={styles.qtyStepBtn}
-                      hitSlop={6}
-                    >
-                      <MaterialCommunityIcons name="plus" size={18} color={colors.accent} />
-                    </Pressable>
-                  </View>
-                  <Text style={styles.modalPrice}>${(PLAT_DU_JOUR.price * platQty).toFixed(0)}</Text>
+                      {item.description ? (
+                        <Text style={styles.modalDescription}>{item.description}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </ScrollView>
+                <View style={styles.platDots}>
+                  {platItems.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[styles.platDot, i === platIndex && styles.platDotActive]}
+                    />
+                  ))}
                 </View>
-              )}
-            </View>
+              </>
+            ) : platItems[0] ? (
+              <View style={styles.platSingle}>
+                <Text style={styles.modalTitle}>{platItems[0].title}</Text>
+                {platItems[0].subtitle ? (
+                  <Text style={styles.modalSubtitle}>{platItems[0].subtitle}</Text>
+                ) : null}
+                <ImageBackground
+                  source={platItems[0].image_url ? { uri: platItems[0].image_url } : PLAT_FALLBACK_IMG}
+                  style={styles.modalImage}
+                  imageStyle={{ borderRadius: radius.lg }}
+                />
+                {platItems[0].description ? (
+                  <Text style={styles.modalDescription}>{platItems[0].description}</Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {(() => {
+              const item = platItems[platIndex];
+              if (!item) return null;
+              const qty = getQty(item.id);
+              const minQty = platItems.length === 1 ? 1 : 0;
+              return (
+                <View style={styles.modalMetaRow}>
+                  <View style={styles.metaChip}>
+                    <MaterialCommunityIcons name="clock-outline" size={14} color={colors.subtle} />
+                    <Text style={styles.metaText}>{PLAT_ETA}</Text>
+                  </View>
+                  {isGuest ? (
+                    <Text style={styles.modalPrice}>${Number(item.price) || 0}</Text>
+                  ) : (
+                    <View style={styles.priceGroup}>
+                      <View style={styles.qtyStepper}>
+                        <Pressable
+                          onPress={() => setQty(item.id, qty - 1)}
+                          style={[styles.qtyStepBtn, qty <= minQty && styles.qtyStepBtnDisabled]}
+                          disabled={qty <= minQty}
+                          hitSlop={6}
+                        >
+                          <MaterialCommunityIcons
+                            name="minus"
+                            size={18}
+                            color={qty <= minQty ? colors.muted : colors.accent}
+                          />
+                        </Pressable>
+                        <Text style={styles.qtyNum}>{qty}</Text>
+                        <Pressable
+                          onPress={() => setQty(item.id, qty + 1)}
+                          style={styles.qtyStepBtn}
+                          hitSlop={6}
+                        >
+                          <MaterialCommunityIcons name="plus" size={18} color={colors.accent} />
+                        </Pressable>
+                      </View>
+                      <Text style={styles.modalPrice}>${((Number(item.price) || 0) * (qty || 1)).toFixed(0)}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
+            {!isGuest && platItems.length > 1 && totalQty > 0 && (
+              <View style={styles.platTotalRow}>
+                <Text style={styles.platTotalLabel}>
+                  {totalQty} {totalQty === 1 ? 'dish' : 'dishes'} in your order
+                </Text>
+                <Text style={styles.platTotalPrice}>${totalPrice.toFixed(0)}</Text>
+              </View>
+            )}
 
             {isGuest ? (
               <Pressable
@@ -672,12 +755,13 @@ export default function HomeScreen({ navigation }) {
                     </View>
                     <TextInput
                       style={styles.deliveryNumberInput}
-                      keyboardType="number-pad"
+                      keyboardType="default"
                       maxLength={6}
                       placeholder="#"
                       placeholderTextColor={colors.muted}
                       value={deliveryUnitNumber}
-                      onChangeText={setDeliveryUnitNumber}
+                      onChangeText={v => setDeliveryUnitNumber(v.toUpperCase())}
+                      autoCapitalize="characters"
                       onSubmitEditing={() => {
                         if (deliveryUnitNumber) setDeliveryEditing(false);
                       }}
@@ -754,9 +838,12 @@ export default function HomeScreen({ navigation }) {
                 </View>
 
                 <Pressable
-                  style={[styles.orderBtn, ordering && { opacity: 0.6 }]}
+                  style={[
+                    styles.orderBtn,
+                    (ordering || totalQty === 0) && { opacity: 0.5 },
+                  ]}
                   onPress={handleOrder}
-                  disabled={ordering}
+                  disabled={ordering || totalQty === 0}
                 >
                   <MaterialCommunityIcons
                     name={scheduleAt ? 'clock-outline' : 'silverware-fork-knife'}
@@ -766,15 +853,19 @@ export default function HomeScreen({ navigation }) {
                   <Text style={styles.orderBtnText}>
                     {ordering
                       ? 'Placing order…'
+                      : platItems.length > 1 && totalQty === 0
+                      ? 'Add a dish to order'
                       : scheduleAt
                       ? `Schedule for ${formatTime(scheduleAt)}`
+                      : platItems.length > 1
+                      ? `Order ${totalQty} ${totalQty === 1 ? 'dish' : 'dishes'}`
                       : 'Order now'}
                   </Text>
                 </Pressable>
               </>
             )}
-          </Pressable>
-        </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -1091,6 +1182,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
+  modalBackdropFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   modalCard: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
@@ -1100,7 +1199,8 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   modalEyebrow: {
     fontSize: 11,
@@ -1108,6 +1208,52 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: colors.accent2,
     marginBottom: 4,
+  },
+  platScroll: {
+    marginHorizontal: -24,
+    marginTop: 14,
+  },
+  platSlide: {
+    width: width,
+    paddingHorizontal: 24,
+  },
+  platSingle: {
+    marginTop: 14,
+  },
+  platDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 14,
+  },
+  platDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: colors.border,
+  },
+  platDotActive: {
+    backgroundColor: colors.accent,
+    width: 18,
+  },
+  platTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  platTotalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.subtle,
+  },
+  platTotalPrice: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
   },
   modalTitle: {
     fontSize: 26,

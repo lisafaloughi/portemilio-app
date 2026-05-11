@@ -104,7 +104,7 @@ export default function OrderHistoryScreen({ navigation }) {
               <MaterialCommunityIcons name="map-marker-outline" size={16} color={colors.subtle} />
               <Text style={styles.detailText}>{selectedOrder?.room_or_chalet || '—'}</Text>
             </View>
-            {selectedOrder?.notes ? (
+            {selectedOrder?.notes && !/^deliver to:/i.test(selectedOrder.notes.trim()) ? (
               <View style={styles.detailRow}>
                 <MaterialCommunityIcons name="note-text-outline" size={16} color={colors.subtle} />
                 <Text style={styles.detailText}>{selectedOrder.notes}</Text>

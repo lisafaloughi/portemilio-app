@@ -125,10 +125,48 @@ function init() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS plat_du_jour_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      description TEXT,
+      price REAL,
+      image_url TEXT,
+      is_today INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      description TEXT,
+      location TEXT,
+      time_label TEXT,
+      price REAL,
+      image_url TEXT,
+      is_today INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 }
 
 init();
+
+// Default plat du jour dish
+const hasMloukhiyeh = db.prepare(`SELECT id FROM plat_du_jour_items WHERE title = 'Mloukhiyeh' LIMIT 1`).get();
+if (!hasMloukhiyeh) {
+  db.prepare(`
+    INSERT INTO plat_du_jour_items (title, subtitle, description, price, is_today)
+    VALUES (?, ?, ?, ?, 1)
+  `).run(
+    'Mloukhiyeh',
+    "Today's Lebanese specialty",
+    'A traditional Lebanese stew of jute leaves, slow cooked with tender chicken, served with rice and a side of lemon.',
+    18,
+  );
+}
 
 // Migrations for existing databases
 function hasColumn(table, column) {
@@ -166,6 +204,27 @@ if (!hasColumn('notifications', 'recipient_names')) {
 }
 if (!hasColumn('bookings', 'reminder_sent')) {
   db.exec(`ALTER TABLE bookings ADD COLUMN reminder_sent INTEGER DEFAULT 0`);
+}
+if (!hasColumn('restaurants', 'image_urls')) {
+  db.exec(`ALTER TABLE restaurants ADD COLUMN image_urls TEXT`);
+}
+if (!hasColumn('restaurants', 'menu_pdf_url')) {
+  db.exec(`ALTER TABLE restaurants ADD COLUMN menu_pdf_url TEXT`);
+}
+
+// Seed image_urls from the originally-bundled mobile assets so admins can see
+// (and manage) what's currently displayed in the app. Only fills empty rows.
+const SEED_IMAGES = {
+  'la-reserve':  ['/uploads/seeds/la_reserve.jpeg', '/uploads/seeds/lareserve1.png', '/uploads/seeds/lareserve2.png'],
+  'pool-bar':    ['/uploads/seeds/poolbar1.jpg', '/uploads/seeds/poolbar2.jpg'],
+  'la-terrasse': ['/uploads/seeds/laterrasse1.jpg', '/uploads/seeds/laterrasse2.jpg'],
+  'fellinis':    ['/uploads/seeds/felinis1.jpg', '/uploads/seeds/felinis2.jpg', '/uploads/seeds/felinis3.jpg'],
+  'khuans-bar':  ['/uploads/seeds/khuans1.jpg', '/uploads/seeds/khuans2.jpg', '/uploads/seeds/khuans3.jpeg', '/uploads/seeds/khuans4.jpg', '/uploads/seeds/khuans5.png'],
+  'sunset-bar':  ['/uploads/seeds/sunsetbar.jpg'],
+};
+const setImgs = db.prepare(`UPDATE restaurants SET image_urls = ? WHERE slug = ? AND (image_urls IS NULL OR image_urls = '')`);
+for (const [slug, urls] of Object.entries(SEED_IMAGES)) {
+  setImgs.run(JSON.stringify(urls), slug);
 }
 
 // Restaurants — additional fields so admin can edit the same content the app shows.

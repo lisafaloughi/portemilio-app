@@ -93,18 +93,31 @@ export default function VenueDetailPage({
           {description ? <Text style={styles.description}>{description}</Text> : null}
 
           {showMenuButton && (
-            <Pressable style={styles.menuBtn} onPress={openMenu}>
-              <MaterialCommunityIcons
-                name="silverware-fork-knife"
-                size={18}
-                color={colors.text}
-              />
-              <Text style={styles.menuBtnText}>View menu</Text>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={18}
-                color={colors.muted}
-              />
+            <Pressable
+              onPress={openMenu}
+              style={({ pressed }) => [
+                styles.menuBtn,
+                pressed && styles.menuBtnPressed,
+              ]}
+              android_ripple={{ color: 'rgba(0,0,0,0.06)' }}
+            >
+              {({ pressed }) => (
+                <>
+                  <MaterialCommunityIcons
+                    name="silverware-fork-knife"
+                    size={18}
+                    color={pressed ? colors.muted : colors.text}
+                  />
+                  <Text style={[styles.menuBtnText, pressed && styles.menuBtnTextPressed]}>
+                    View menu
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={18}
+                    color={pressed ? colors.subtle : colors.muted}
+                  />
+                </>
+              )}
             </Pressable>
           )}
 
@@ -309,6 +322,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  menuBtnPressed: {
+    opacity: 0.55,
+    transform: [{ scale: 0.985 }],
   },
   menuBtnText: {
     flex: 1,
@@ -316,5 +334,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     letterSpacing: 0.2,
+  },
+  menuBtnTextPressed: {
+    color: colors.muted,
   },
 });

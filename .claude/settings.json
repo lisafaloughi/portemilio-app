@@ -13,7 +13,18 @@
       "Bash(xargs kill *)",
       "Bash(lsof -ti:4000)",
       "Bash(grep -n \"calRow\\\\|HOURS.map\\\\|HOURS\\\\.map\\\\|cal-cell\\\\|cellPast\\\\|Pressable\\\\s*$\\\\|cellMine\\\\|cellBooked\\\\|cellWidth = \\(SCREEN_W\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/TennisScreen.js)",
-      "Bash(grep -n \"Tap a slot for one hour\\\\|</>$\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/TennisScreen.js)"
+      "Bash(grep -n \"Tap a slot for one hour\\\\|</>$\" /Users/lisafaloughi/Desktop/Portemilio/mobile/screens/TennisScreen.js)",
+      "Bash(node --check server.js)",
+      "Bash(node --check public/app.js)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(curl -s http://localhost:3000/api/restaurants)",
+      "Bash(curl -s http://localhost:4000/api/restaurants)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK,', len\\(d\\), 'restaurants, first:', d[0].get\\('name'\\) if d else 'none'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(r['name'], '→', r.get\\('image_urls'\\)\\) for r in d]\")",
+      "Bash(cat /tmp/portemilio.log)",
+      "Read(//private/tmp/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(r['name'], '→', len\\(json.loads\\(r['image_urls']\\)\\) if r.get\\('image_urls'\\) else 0, 'images'\\) for r in d]\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\\\\n\" http://localhost:4000/uploads/seeds/felinis1.jpg)"
     ]
   }
 }

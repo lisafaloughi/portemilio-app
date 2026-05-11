@@ -3,7 +3,15 @@
 // and so admin doesn't need to deal with uploads).
 
 import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, API_BASE_URL } from '../api';
+
+// API_BASE_URL ends in /api — strip it for static asset URLs (/uploads/...)
+const HOST = API_BASE_URL.replace(/\/api\/?$/, '');
+function toAbsolute(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  return HOST + (url.startsWith('/') ? url : '/' + url);
+}
 
 // Image bundle keyed by venue slug. Add a new entry here whenever the admin creates a venue
 // that should display images in the app.
@@ -43,11 +51,21 @@ let inflight = null;
 
 function normalize(row) {
   const slug = row.slug || `r-${row.id}`;
-  const images = VENUE_IMAGES[slug] || [];
+
+  // Prefer admin-uploaded images; fall back to locally bundled assets
+  let images = VENUE_IMAGES[slug] || [];
+  if (row.image_urls) {
+    try {
+      const urls = JSON.parse(row.image_urls);
+      if (urls.length) images = urls.map(u => ({ uri: toAbsolute(u) }));
+    } catch { /* keep local bundle */ }
+  }
+
   let highlights = [];
   if (row.highlights) {
     try { highlights = JSON.parse(row.highlights); } catch { highlights = []; }
   }
+
   return {
     ...row,
     id: slug,
@@ -58,6 +76,7 @@ function normalize(row) {
     highlights,
     upcoming: !!row.upcoming,
     mapPinId: row.map_pin_id || slug,
+    menuUrl: row.menu_pdf_url ? toAbsolute(row.menu_pdf_url) : null,
   };
 }
 

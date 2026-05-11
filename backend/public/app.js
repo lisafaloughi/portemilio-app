@@ -107,6 +107,16 @@ const api = {
   // settings
   settings: () => call(`${ADMIN}/settings`),
   updateSetting: (key, value) => call(`${ADMIN}/settings/${key}`, { method: 'PUT', body: { value } }),
+  // plat du jour
+  platDuJourItems: () => call(`${ADMIN}/plat-du-jour`),
+  createPlatDuJourItem: (b) => call(`${ADMIN}/plat-du-jour`, { method: 'POST', body: b }),
+  updatePlatDuJourItem: (id, b) => call(`${ADMIN}/plat-du-jour/${id}`, { method: 'PUT', body: b }),
+  deletePlatDuJourItem: (id) => call(`${ADMIN}/plat-du-jour/${id}`, { method: 'DELETE' }),
+  // activities
+  activities: () => call(`${ADMIN}/activities`),
+  createActivity: (b) => call(`${ADMIN}/activities`, { method: 'POST', body: b }),
+  updateActivity: (id, b) => call(`${ADMIN}/activities/${id}`, { method: 'PUT', body: b }),
+  deleteActivity: (id) => call(`${ADMIN}/activities/${id}`, { method: 'DELETE' }),
 };
 
 // =========================== UTILS ===========================
@@ -244,7 +254,9 @@ const TABS = [
   { id: 'users', label: 'Guests' },
   { id: 'bookings', label: 'Bookings' },
   { id: 'deliveries', label: 'Deliveries' },
-  { id: 'content', label: 'Content' },
+  { id: 'content', label: 'Property Details' },
+  { id: 'platdujour', label: 'Plat du Jour' },
+  { id: 'today', label: "Today's Activities & Events" },
   { id: 'notifications', label: 'Notifications' },
 ];
 
@@ -322,6 +334,8 @@ async function setTab(id) {
     else if (id === 'bookings') await renderBookings();
     else if (id === 'deliveries') await renderDeliveries();
     else if (id === 'content') await renderContent();
+    else if (id === 'platdujour') await renderPlatDuJour();
+    else if (id === 'today') await renderTodayActivities();
     else if (id === 'notifications') await renderNotifications();
   } catch (e) {
     $('#page-body').appendChild(h('div', { class: 'empty' }, e.message || 'Failed to load'));
@@ -336,22 +350,25 @@ async function renderDashboard() {
   state.dashboard = d;
   renderNav();
 
-  const tile = (label, value, hint, alert) =>
-    h('div', { class: 'stat-tile' + (alert ? ' alert' : '') },
+  const tile = (label, value, hint, alert, tabId) => {
+    const attrs = { class: 'stat-tile' + (alert ? ' alert' : '') + (tabId ? ' linkable' : '') };
+    if (tabId) attrs.onclick = () => setTab(tabId);
+    return h('div', attrs,
       h('div', { class: 'label' }, label),
       h('div', { class: 'value' }, String(value || 0)),
       hint ? h('div', { class: 'hint' }, hint) : null,
     );
+  };
 
   body.appendChild(h('div', { class: 'stat-grid' },
-    tile('Pending approvals', d.users_pending, 'Awaiting verification', d.users_pending > 0),
-    tile('Pending deliveries', d.deliveries_pending, 'New orders', d.deliveries_pending > 0),
-    tile('In progress', d.deliveries_in_progress, 'Processing or out for delivery'),
-    tile('Bookings today', d.bookings_today, 'Confirmed activity'),
-    tile('Pending bookings', d.bookings_pending, ''),
-    tile('Total guests', d.users_total, ''),
-    tile('Upcoming events', d.events_upcoming, ''),
-    tile('Restaurants', d.restaurants, ''),
+    tile('Pending approvals', d.users_pending, 'Awaiting verification', d.users_pending > 0, 'approvals'),
+    tile('Pending deliveries', d.deliveries_pending, 'New orders', d.deliveries_pending > 0, 'deliveries'),
+    tile('Pending bookings', d.bookings_pending, '', d.bookings_pending > 0, 'bookings'),
+    tile('Bookings today', d.bookings_today, 'Confirmed activity', false, 'bookings'),
+    tile('Total guests', d.users_total, '', false, 'users'),
+    tile('Plat du Jour', d.plat_du_jour_count, 'Items featured today', false, 'platdujour'),
+    tile("Today's Activities & Events", d.events_today, 'Scheduled today', false, 'today'),
+    tile('Send Notifications', d.notifications_total, 'Total sent', false, 'notifications'),
   ));
 }
 
@@ -880,15 +897,15 @@ async function renderDeliveries() {
     return;
   }
 
-  const t = h('table', { class: 'table' });
-  t.append(h('thead', {}, h('tr', {},
+  const STATUSES = ['pending', 'processing', 'out_for_delivery', 'delivered', 'cancelled'];
+  const isActive = (s) => ['pending', 'processing', 'out_for_delivery'].includes(s);
+  const rowClass = (s) => s === 'delivered' ? 'row-delivered' : s === 'cancelled' ? 'row-cancelled' : isActive(s) ? 'row-active' : '';
+
+  const makethead = () => h('thead', {}, h('tr', {},
     h('th', {}, 'Placed'), h('th', {}, 'Guest'), h('th', {}, 'Restaurant'),
     h('th', {}, 'Items'), h('th', {}, 'Destination'), h('th', {}, 'Total'),
     h('th', {}, 'Scheduled'), h('th', {}, 'Status'), h('th', { class: 'right' }, ''),
-  )));
-  const tb = h('tbody');
-
-  const STATUSES = ['pending', 'processing', 'out_for_delivery', 'delivered', 'cancelled'];
+  ));
 
   // Pull destination + scheduled time from explicit columns first; for older rows, parse the
   // notes string the mobile app writes (e.g. "Deliver to: Chalet 42. Scheduled for 3:00 PM today.").
@@ -903,6 +920,9 @@ async function renderDeliveries() {
     return m ? m[1].trim() : null;
   };
 
+  const activeTbody = h('tbody');
+  const doneTbody = h('tbody');
+
   for (const d of list) {
     const itemsLabel = d.items.map(it => `${it.qty || 1}× ${it.name}`).join(', ');
     const dest = d.chalet_number
@@ -913,18 +933,13 @@ async function renderDeliveries() {
     const scheduledLabel = d.scheduled_for
       ? fmtDateTime(d.scheduled_for)
       : (scheduledFromNotes(d.notes) || 'ASAP');
-    const sel = h('select', {
-      onchange: async (e) => {
-        try { await api.setDeliveryStatus(d.id, e.target.value); toast('Updated'); }
-        catch (err) { toast(err.message, 'error'); }
-      },
-    });
+    const sel = h('select', {});
     for (const s of STATUSES) {
       const o = h('option', { value: s }, s.replace(/_/g, ' '));
       if (d.status === s) o.selected = true;
       sel.appendChild(o);
     }
-    tb.append(h('tr', {},
+    const tr = h('tr', { class: rowClass(d.status) },
       h('td', { class: 'muted-text' }, fmtDateTime(d.created_at)),
       h('td', {}, h('div', { style: 'font-weight: 600;' }, d.user_name), h('div', { class: 'muted-text' }, d.user_email)),
       h('td', {}, d.restaurant_name || '—'),
@@ -939,10 +954,43 @@ async function renderDeliveries() {
           try { await api.deleteDelivery(d.id); toast('Deleted'); setTab('deliveries'); } catch (e) { toast(e.message, 'error'); }
         } }, 'Delete'),
       ),
-    ));
+    );
+    sel.addEventListener('change', async (e) => {
+      const newStatus = e.target.value;
+      const wasActive = isActive(d.status);
+      const nowActive = isActive(newStatus);
+      try {
+        await api.setDeliveryStatus(d.id, newStatus);
+        toast('Updated');
+        d.status = newStatus;
+        tr.className = rowClass(newStatus);
+        if (wasActive && !nowActive) doneTbody.prepend(tr);
+        else if (!wasActive && nowActive) activeTbody.append(tr);
+      } catch (err) {
+        toast(err.message, 'error');
+        e.target.value = d.status;
+      }
+    });
+    if (isActive(d.status)) activeTbody.append(tr);
+    else doneTbody.append(tr);
   }
-  t.appendChild(tb);
-  body.appendChild(h('div', { class: 'card', style: 'padding: 0; overflow: hidden;' }, t));
+
+  const sectionLabel = (text) => h('div', { class: 'deliveries-section-label' }, text);
+
+  const activeTable = h('table', { class: 'table' });
+  activeTable.append(makethead());
+  activeTable.appendChild(activeTbody);
+
+  const doneTable = h('table', { class: 'table' });
+  doneTable.append(makethead());
+  doneTable.appendChild(doneTbody);
+
+  body.appendChild(h('div', {},
+    sectionLabel('In progress'),
+    h('div', { class: 'card', style: 'padding: 0; overflow: hidden; margin-bottom: 28px;' }, activeTable),
+    sectionLabel('History'),
+    h('div', { class: 'card', style: 'padding: 0; overflow: hidden;' }, doneTable),
+  ));
 }
 
 async function openCreateDeliveryModal() {
@@ -1020,15 +1068,15 @@ async function openCreateDeliveryModal() {
 // =========================== CONTENT (restaurants/menu/facilities/events) ===========================
 async function renderContent() {
   const body = $('#page-body');
-  $('#page-subtitle').textContent = 'Edit the information shown in the guest app — restaurants, menus, facilities and events.';
+  $('#page-subtitle').textContent = 'Edit the information shown in the guest app — restaurants, bars, facilities and services.';
 
   const tabs = h('div', { class: 'subtabs' });
   const TS = [
-    { id: 'restaurants', label: 'Restaurants' },
-    { id: 'menu', label: 'Menus' },
+    { id: 'restaurants', label: 'Restaurants & Bars' },
     { id: 'facilities', label: 'Facilities' },
-    { id: 'events', label: 'Events' },
+    { id: 'events', label: 'Other Services' },
   ];
+  if (!['restaurants', 'facilities', 'events'].includes(state.contentTab)) state.contentTab = 'restaurants';
   for (const t of TS) {
     tabs.append(h('button', {
       class: 'subtab' + (state.contentTab === t.id ? ' active' : ''),
@@ -1038,7 +1086,6 @@ async function renderContent() {
   body.appendChild(tabs);
 
   if (state.contentTab === 'restaurants') await renderRestaurants(body);
-  else if (state.contentTab === 'menu') await renderMenuItems(body);
   else if (state.contentTab === 'facilities') await renderFacilities(body);
   else if (state.contentTab === 'events') await renderEvents(body);
 }
@@ -1077,80 +1124,377 @@ async function renderRestaurants(body) {
 
 function openRestaurantModal(r) {
   const isEdit = !!r;
-  // Highlights are stored as a JSON-encoded array. Show as one-per-line in the form.
+
+  // Parse existing image_urls
+  let imageUrls = [];
+  if (r?.image_urls) {
+    try { imageUrls = JSON.parse(r.image_urls); } catch { imageUrls = []; }
+  }
+  // Fall back to single image_url for old records
+  if (!imageUrls.length && r?.image_url) imageUrls = [r.image_url];
+
+  let menuPdfUrl = r?.menu_pdf_url || null;
+
+  // Highlights
   let initialHighlights = '';
   if (r?.highlights) {
     try { initialHighlights = JSON.parse(r.highlights).join('\n'); }
     catch { initialHighlights = r.highlights; }
   }
+
+  // --- Image grid (reactive, outside the form) ---
+  function openImagePreview(src) {
+    const overlay = h('div', {
+      style: 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;',
+      onclick: () => overlay.remove(),
+    });
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'max-width:88vw;max-height:88vh;border-radius:12px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,0.6);';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+  }
+
+  let dragEl = null;
+  function syncImagesFromDom() {
+    imageUrls.splice(0, imageUrls.length,
+      ...Array.from(imgGrid.children).map(c => c._url).filter(Boolean));
+  }
+  // FLIP: animate non-dragged thumbs smoothly when their position changes
+  function flipReorder(perform) {
+    const items = Array.from(imgGrid.children);
+    const beforeRects = items.map(el => el.getBoundingClientRect());
+    perform();
+    items.forEach((el, i) => {
+      if (el === dragEl) return;
+      const before = beforeRects[i];
+      const after = el.getBoundingClientRect();
+      const dx = before.left - after.left;
+      const dy = before.top - after.top;
+      if (dx === 0 && dy === 0) return;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 180ms ease';
+        el.style.transform = '';
+        // Strip the transition style as soon as the animation completes so
+        // we don't leave thumbs in a "has active transition" state — which
+        // is the exact condition under which WebKit defers drag detection
+        // and falls through to a text-selection gesture on the next drag.
+        const onEnd = (ev) => {
+          if (ev.propertyName && ev.propertyName !== 'transform') return;
+          el.style.transition = '';
+          el.removeEventListener('transitionend', onEnd);
+        };
+        el.addEventListener('transitionend', onEnd);
+      });
+    });
+  }
+
+  function renderImageGrid() {
+    imgGrid.innerHTML = '';
+    imageUrls.forEach((url) => {
+      const thumb = document.createElement('div');
+      thumb.draggable = true;
+      thumb._url = url;
+      thumb.title = 'Click to preview · drag to reorder';
+      // -webkit-user-drag: element explicitly tells WebKit "this element is
+      // THE drag source." Combined with draggable=true, it makes drag-source
+      // detection stable even when the thumb has an active CSS transition
+      // from a prior FLIP animation.
+      thumb.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px;border-radius:10px;cursor:grab;background:transparent;user-select:none;-webkit-user-select:none;-webkit-user-drag:element;';
+      // Click (not drag) opens the lightbox. Browsers don't fire `click`
+      // after a successful HTML5 drag, so this only triggers for real taps.
+      thumb.addEventListener('click', (e) => {
+        // Don't open preview when the user is actually clicking the delete
+        // button (the click bubbles up to the thumb).
+        if (e.target.closest && e.target.closest('button')) return;
+        openImagePreview(url);
+      });
+
+      // On mousedown, defuse competing drag sources WITHOUT calling
+      // preventDefault — that would block the drag itself on WebKit.
+      //  1. Blur any focused INPUT/TEXTAREA — its internal selection isn't
+      //     covered by window.getSelection() and the browser can drag it.
+      //  2. Clear any document-level text selection.
+      thumb.addEventListener('mousedown', () => {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          active.blur();
+        }
+        const sel = window.getSelection && window.getSelection();
+        if (sel && !sel.isCollapsed) sel.removeAllRanges();
+      });
+      // Cancel selectstart — the event that fires the instant a selection
+      // gesture would begin. This blocks the text-selection-from-image
+      // gesture without blocking the HTML5 drag, which uses a separate
+      // event dispatch path.
+      thumb.addEventListener('selectstart', (e) => e.preventDefault());
+
+      thumb.addEventListener('dragstart', (e) => {
+        // Cancel any FLIP residue left over from a prior reorder. The dragend
+        // handler only cleans up the thumb that was dragged — every OTHER
+        // thumb that moved still has `transition: transform 180ms ease` (and
+        // sometimes a stale transform) inline. That residue creates a stacking
+        // context and a live transition on a grid sibling, which can confuse
+        // the browser's drag-source resolution on the next drag.
+        for (const child of imgGrid.children) {
+          child.style.transition = '';
+          child.style.transform = '';
+        }
+        dragEl = thumb;
+        e.dataTransfer.effectAllowed = 'move';
+        // Use a custom MIME type — NOT text/plain — so textareas and inputs
+        // can't accept this drop and insert the URL as text.
+        try { e.dataTransfer.setData('application/x-img-reorder', '1'); } catch (_) {}
+        // Use the opaque <img> as the drag preview so transparent padding
+        // doesn't leak underlying page content into the dragged image.
+        const imgEl = thumb.querySelector('img');
+        if (imgEl) {
+          const rect = imgEl.getBoundingClientRect();
+          e.dataTransfer.setDragImage(
+            imgEl,
+            Math.max(0, e.clientX - rect.left),
+            Math.max(0, e.clientY - rect.top),
+          );
+        }
+        setTimeout(() => { thumb.style.opacity = '0.4'; }, 0);
+      });
+      thumb.addEventListener('dragend', () => {
+        thumb.style.opacity = '1';
+        thumb.style.transform = '';
+        thumb.style.transition = '';
+        dragEl = null;
+        syncImagesFromDom();
+      });
+      thumb.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!dragEl || dragEl === thumb) return;
+        const rect = thumb.getBoundingClientRect();
+        const isAfter = e.clientX > rect.left + rect.width / 2;
+        const target = isAfter ? thumb.nextSibling : thumb;
+        // No-op if already in position
+        if (dragEl === target || dragEl.nextSibling === target) return;
+        flipReorder(() => { imgGrid.insertBefore(dragEl, target); });
+      });
+      thumb.addEventListener('drop', (e) => { e.preventDefault(); });
+
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.draggable = false;
+      img.setAttribute('draggable', 'false');
+      // pointer-events:none is the critical fix: it removes the <img> from
+      // hit-testing entirely, so mousedown can NEVER land on the img element
+      // — regardless of whether the image is mid-decode (large files like
+      // khuans4.jpg / lareserve1.png trigger this) or whether WebKit's
+      // drag-source resolution would have aborted on it. The mousedown lands
+      // on the thumb wrapper directly, the thumb is draggable, and the
+      // HTML5 drag always starts cleanly. setDragImage can still use this
+      // <img> for the visual preview because that uses rendering, not events.
+      img.style.cssText = 'width:88px;height:88px;object-fit:cover;border-radius:8px;display:block;-webkit-user-drag:none;user-drag:none;-webkit-user-select:none;user-select:none;pointer-events:none;';
+
+      const delBtn = h('button', {
+        type: 'button',
+        title: 'Delete image',
+        style: 'background:none;border:none;cursor:pointer;color:#c0392b;padding:4px 6px;display:flex;align-items:center;justify-content:center;-webkit-user-drag:none;user-drag:none;',
+        onclick: () => {
+          if (!confirm('Are you sure you want to delete this image?')) return;
+          const idx = imageUrls.indexOf(url);
+          if (idx >= 0) {
+            imageUrls.splice(idx, 1);
+            renderImageGrid();
+          }
+        },
+      });
+      delBtn.draggable = false;
+      delBtn.setAttribute('draggable', 'false');
+      delBtn.addEventListener('dragstart', (e) => { e.preventDefault(); });
+      delBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:block;pointer-events:none;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
+
+      thumb.appendChild(img);
+      thumb.appendChild(delBtn);
+      imgGrid.appendChild(thumb);
+    });
+  }
+
+  function renderPdfRow() {
+    pdfRow.innerHTML = '';
+    if (menuPdfUrl) {
+      const name = menuPdfUrl.split('/').pop();
+      pdfRow.appendChild(h('span', { style: 'font-size:13px;color:#555;margin-right:8px;' }, '📄 ' + name));
+      pdfRow.appendChild(h('button', {
+        type: 'button', class: 'btn ghost', style: 'padding:4px 10px;font-size:12px;',
+        onclick: () => { menuPdfUrl = null; renderPdfRow(); },
+      }, 'Remove'));
+    } else {
+      pdfRow.appendChild(h('span', { style: 'font-size:13px;color:#999;' }, 'No menu PDF uploaded'));
+    }
+  }
+
+  const imgGrid = h('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;min-height:20px;user-select:none;-webkit-user-select:none;' });
+  const pdfRow = h('div', { style: 'display:flex;align-items:center;gap:8px;margin-top:6px;' });
+  renderImageGrid();
+  renderPdfRow();
+
+  async function uploadFile(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const headers = {};
+    if (state.token) headers.Authorization = 'Bearer ' + state.token;
+    const res = await fetch(ADMIN + '/upload', { method: 'POST', headers, body: fd });
+    if (!res.ok) {
+      let msg = 'Upload failed';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  // Hidden file inputs
+  const imgInput = (() => {
+    const el = document.createElement('input');
+    el.type = 'file'; el.accept = 'image/*'; el.multiple = true; el.style.display = 'none';
+    el.onchange = async () => {
+      const files = Array.from(el.files);
+      el.value = '';
+      for (const file of files) {
+        try {
+          const data = await uploadFile(file);
+          if (data.url) {
+            imageUrls.push(data.url); // append to end
+            renderImageGrid();
+          }
+        } catch (err) { toast(err.message || 'Upload failed', 'error'); }
+      }
+    };
+    return el;
+  })();
+
+  const pdfInput = (() => {
+    const el = document.createElement('input');
+    el.type = 'file'; el.accept = 'application/pdf'; el.style.display = 'none';
+    el.onchange = async () => {
+      const file = el.files[0];
+      el.value = '';
+      if (!file) return;
+      try {
+        const data = await uploadFile(file);
+        if (data.url) { menuPdfUrl = data.url; renderPdfRow(); }
+      } catch (err) { toast(err.message || 'Upload failed', 'error'); }
+    };
+    return el;
+  })();
+
+  // Parse current categories
+  const currentCats = (r?.categories || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const cbRestaurant = (() => { const c = h('input', { type: 'checkbox', name: 'cat_restaurant' }); c.checked = currentCats.includes('restaurants'); return c; })();
+  const cbBar = (() => { const c = h('input', { type: 'checkbox', name: 'cat_bar' }); c.checked = currentCats.includes('bars'); return c; })();
+
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
-    fd.delivery = e.target.delivery.checked ? 1 : 0;
-    fd.upcoming = e.target.upcoming.checked ? 1 : 0;
-    fd.sort_order = fd.sort_order ? Number(fd.sort_order) : 0;
-    // Highlights: split lines, drop blanks, encode.
+    // Categories from checkboxes
+    const cats = [];
+    if (cbRestaurant.checked) cats.push('restaurants');
+    if (cbBar.checked) cats.push('bars');
+    fd.categories = cats.join(', ') || null;
+    // Highlights
     const lines = (fd.highlights || '').split('\n').map(s => s.trim()).filter(Boolean);
     fd.highlights = lines.length ? JSON.stringify(lines) : null;
+    // Images + PDF from reactive state
+    fd.image_urls = imageUrls.length ? JSON.stringify(imageUrls) : null;
+    fd.menu_pdf_url = menuPdfUrl || null;
+    // Preserve slug from existing record (never touch it from the form)
+    if (isEdit && r.slug) fd.slug = r.slug;
     try {
       if (isEdit) await api.updateRestaurant(r.id, fd);
       else await api.createRestaurant(fd);
       toast('Saved'); m.close(); setTab('content');
     } catch (err) { toast(err.message, 'error'); }
   } },
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Slug (stable id)'),
-        h('input', { name: 'slug', value: r?.slug || '', placeholder: 'e.g. la-reserve' }),
-      ),
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Sort order'),
-        h('input', { type: 'number', name: 'sort_order', value: r?.sort_order || 0 }),
-      ),
-    ),
-    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Name'), h('input', { name: 'name', value: r?.name || '', required: true })),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Specialty (one-line tagline)'),
-        h('input', { name: 'specialty', value: r?.specialty || '', placeholder: 'e.g. Brunch on Sundays' }),
-      ),
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Categories (comma-separated)'),
-        h('input', { name: 'categories', value: r?.categories || '', placeholder: 'restaurants, bars' }),
-      ),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Cuisine'), h('input', { name: 'cuisine', value: r?.cuisine || '' })),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Hours'), h('input', { name: 'hours', value: r?.hours || '', placeholder: 'e.g. 12:00 – 23:00' })),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Address / location'), h('input', { name: 'address', value: r?.address || '' })),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Phone'), h('input', { name: 'phone', value: r?.phone || '' })),
-    ),
-    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Description'), h('textarea', { name: 'description' }, r?.description || '')),
     h('div', { class: 'field' },
-      h('label', { class: 'field-label' }, 'Highlights (one per line — shown as bullet points)'),
-      h('textarea', { name: 'highlights', placeholder: 'Sunday brunch · 1 PM – 6 PM\nBuffet for $35/adult' }, initialHighlights),
+      h('label', { class: 'field-label' }, 'Name *'),
+      h('input', { name: 'name', value: r?.name || '', required: true, placeholder: 'e.g. La Réserve' }),
     ),
     h('div', { class: 'field' },
-      h('label', { class: 'field-label' }, 'Map pin id'),
-      h('input', { name: 'map_pin_id', value: r?.map_pin_id || '' }),
+      h('label', { class: 'field-label' }, 'Subtitle'),
+      h('input', { name: 'specialty', value: r?.specialty || '', placeholder: 'e.g. Rooftop dining with sea views' }),
     ),
-    h('div', { class: 'field row-flex' },
-      h('label', { class: 'checkbox-row' },
-        (() => { const c = h('input', { type: 'checkbox', name: 'delivery' }); c.checked = !!r?.delivery; return c; })(),
-        'Offers delivery',
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Category'),
+      h('div', { style: 'display:flex;gap:20px;margin-top:6px;' },
+        h('label', { style: 'display:flex;align-items:center;gap:6px;cursor:pointer;' }, cbRestaurant, 'Restaurant'),
+        h('label', { style: 'display:flex;align-items:center;gap:6px;cursor:pointer;' }, cbBar, 'Bar'),
       ),
-      h('label', { class: 'checkbox-row' },
-        (() => { const c = h('input', { type: 'checkbox', name: 'upcoming' }); c.checked = !!r?.upcoming; return c; })(),
-        'Coming soon',
+    ),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Location'),
+        h('input', { name: 'address', value: r?.address || '', placeholder: 'e.g. Pool level, Building B' }),
       ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Hours'),
+        h('input', { name: 'hours', value: r?.hours || '', placeholder: 'e.g. 12:00 – 23:00' }),
+      ),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Phone'),
+      h('input', { name: 'phone', value: r?.phone || '', placeholder: 'e.g. +961 9 636 000' }),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Description'),
+      h('textarea', { name: 'description', rows: 3 }, r?.description || ''),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Highlights (one per line)'),
+      h('textarea', { name: 'highlights', rows: 3, placeholder: 'Sunday brunch · 1 PM – 6 PM\nBuffet for $35/adult' }, initialHighlights),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Images'),
+      imgGrid,
+      imgInput,
+      h('button', {
+        type: 'button', class: 'btn ghost', style: 'margin-top:8px;',
+        onclick: () => imgInput.click(),
+      }, '+ Add image'),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Menu (PDF)'),
+      pdfRow,
+      pdfInput,
+      h('button', {
+        type: 'button', class: 'btn ghost', style: 'margin-top:8px;',
+        onclick: () => pdfInput.click(),
+      }, menuPdfUrl ? 'Replace PDF' : 'Upload PDF'),
     ),
     h('div', { class: 'modal-actions' },
       h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
       h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save' : 'Create'),
     ),
   );
+
+  // Safety net: while reordering images, cancel any drop that lands outside
+  // the image grid (e.g. on a textarea or input). Without this, the browser's
+  // default would let the URL be inserted into focused text fields.
+  form.addEventListener('dragover', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imgGrid.contains(e.target)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'none';
+    }
+  });
+  form.addEventListener('drop', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imgGrid.contains(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
   const m = openModal(h('div', {}, h('h3', {}, isEdit ? 'Edit restaurant' : 'New restaurant'), form), { large: true });
 }
 
@@ -1401,6 +1745,436 @@ function openEventModal(ev) {
     ),
   );
   const m = openModal(h('div', {}, h('h3', {}, isEdit ? 'Edit event' : 'New event'), form));
+}
+
+// =========================== PLAT DU JOUR ===========================
+async function renderPlatDuJour() {
+  const body = $('#page-body');
+  $('#page-subtitle').textContent = "Check the items to feature as today's plat du jour. Click a dish to view details.";
+  $('#page-actions').appendChild(h('button', { class: 'btn primary', onclick: () => openPlatDuJourModal() }, '+ Add dish'));
+
+  const allItems = await api.platDuJourItems();
+
+  // Search bar above the table, full width
+  const searchInput = h('input', { type: 'search', placeholder: 'Search dishes…', class: 'pdj-search' });
+  body.appendChild(searchInput);
+
+  if (!allItems.length) {
+    body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No dishes yet. Add your first one.')));
+    return;
+  }
+
+  const table = h('table', { class: 'table fixed' });
+  table.append(h('thead', {}, h('tr', {},
+    h('th', { style: 'width:80px;' }),
+    h('th', {}, 'Dish'),
+    h('th', {}, 'Description'),
+    h('th', { style: 'width:90px;' }, 'Price'),
+    h('th', { style: 'width:70px;' }),
+  )));
+  const tbody = h('tbody');
+  const emptyState = h('div', { class: 'pdj-empty' }, 'No dishes match your search.');
+  emptyState.style.display = 'none';
+
+  const renderRows = (q) => {
+    tbody.innerHTML = '';
+    const query = (q || '').trim().toLowerCase();
+    const filtered = query
+      ? allItems.filter(it =>
+          (it.title || '').toLowerCase().includes(query) ||
+          (it.subtitle || '').toLowerCase().includes(query) ||
+          (it.description || '').toLowerCase().includes(query))
+      : allItems;
+
+    emptyState.style.display = filtered.length ? 'none' : 'block';
+    if (!filtered.length) return;
+
+    for (const item of filtered) {
+      const toggle = h('input', { type: 'checkbox', style: 'width:18px;height:18px;cursor:pointer;accent-color:var(--navy);' });
+      toggle.checked = !!item.is_today;
+
+      const imgEl = item.image_url
+        ? h('img', { src: item.image_url, style: 'width:52px;height:52px;object-fit:cover;border-radius:8px;display:block;' })
+        : h('div', { style: 'width:52px;height:52px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;' }, '🍽');
+
+      const tr = h('tr', { class: item.is_today ? 'row-plat' : '', style: 'cursor:pointer;' },
+        h('td', { style: 'width:64px;' }, imgEl),
+        h('td', {},
+          h('div', { style: 'font-weight:700;font-size:14px;' }, item.title),
+          item.subtitle ? h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' }, item.subtitle) : null,
+        ),
+        h('td', { style: 'max-width:300px;' },
+          item.description
+            ? h('div', { class: 'muted-text', style: 'font-size:13px;white-space:normal;' }, item.description)
+            : h('span', { class: 'muted-text' }, '—'),
+        ),
+        h('td', { class: 'num' }, item.price != null ? `$${Number(item.price).toFixed(2)}` : '—'),
+        h('td', { class: 'right' }, toggle),
+      );
+
+      tr.addEventListener('click', (e) => {
+        if (toggle.contains(e.target)) return;
+        openPlatDuJourDetail(item);
+      });
+
+      toggle.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const val = toggle.checked ? 1 : 0;
+        try {
+          await api.updatePlatDuJourItem(item.id, { is_today: val });
+          item.is_today = val;
+          tr.className = val ? 'row-plat' : '';
+          toast(val ? `${item.title} set as today's special` : `${item.title} removed from today`);
+        } catch (err) {
+          toggle.checked = !toggle.checked;
+          toast(err.message, 'error');
+        }
+      });
+
+      tbody.append(tr);
+    }
+  };
+
+  searchInput.addEventListener('input', (e) => renderRows(e.target.value));
+  renderRows('');
+
+  table.appendChild(tbody);
+  body.appendChild(h('div', { class: 'card pdj-card' }, table, emptyState));
+}
+
+async function readImageAsBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 900;
+        const scale = img.width > MAX ? MAX / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function openPlatDuJourModal(item = null) {
+  const isEdit = !!item;
+
+  const previewEl = h('div', { class: 'pdj-img-preview' });
+  if (item?.image_url) {
+    previewEl.appendChild(h('img', { src: item.image_url, style: 'width:100%;height:100%;object-fit:cover;' }));
+  } else {
+    previewEl.textContent = '🍽';
+  }
+  const fileInput = h('input', { type: 'file', accept: 'image/*', style: 'font-size:14px;' });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewEl.innerHTML = '';
+      previewEl.appendChild(h('img', { src: e.target.result, style: 'width:100%;height:100%;object-fit:cover;' }));
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const titleInput = h('input', { type: 'text', name: 'title', required: true, placeholder: 'e.g. Mloukhiyeh' });
+  if (item?.title) titleInput.value = item.title;
+  const subtitleInput = h('input', { type: 'text', name: 'subtitle', required: true, placeholder: "e.g. Today's Lebanese specialty" });
+  if (item?.subtitle) subtitleInput.value = item.subtitle;
+  const descInput = h('textarea', { name: 'description', rows: '3', placeholder: 'e.g. A traditional Lebanese stew of jute leaves, slow cooked with tender chicken and served with rice.' });
+  if (item?.description) descInput.value = item.description;
+  const priceInput = h('input', { type: 'number', name: 'price', required: true, step: '0.01', min: '0', placeholder: 'e.g. 18.00' });
+  if (item?.price != null) priceInput.value = String(item.price);
+
+  const form = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    let image_url = item?.image_url || null;
+    const file = fileInput.files[0];
+    if (file) image_url = await readImageAsBase64(file);
+    const payload = {
+      title: titleInput.value.trim(),
+      subtitle: subtitleInput.value.trim() || null,
+      description: descInput.value.trim() || null,
+      price: priceInput.value ? Number(priceInput.value) : null,
+      image_url,
+    };
+    try {
+      if (isEdit) { await api.updatePlatDuJourItem(item.id, payload); toast('Dish updated'); }
+      else { await api.createPlatDuJourItem(payload); toast('Dish added'); }
+      m.close();
+      setTab('platdujour');
+    } catch (err) { toast(err.message, 'error'); }
+  }},
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Photo'),
+      h('div', { style: 'display:flex;align-items:center;gap:14px;' },
+        previewEl,
+        h('div', {},
+          fileInput,
+          h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:4px;' }, 'JPG or PNG · max ~2 MB'),
+        ),
+      ),
+    ),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Title', h('span', { class: 'req' }, '*')), titleInput),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Subtitle', h('span', { class: 'req' }, '*')), subtitleInput),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Description'), descInput),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Price ($)', h('span', { class: 'req' }, '*')), priceInput),
+    h('div', { style: 'display:flex;gap:10px;margin-top:20px;justify-content:space-between;align-items:center;' },
+      isEdit
+        ? h('button', { type: 'button', class: 'btn danger sm', onclick: async () => {
+            if (!confirm(`Delete "${item.title}"?`)) return;
+            try { await api.deletePlatDuJourItem(item.id); toast('Dish deleted'); m.close(); setTab('platdujour'); }
+            catch (err) { toast(err.message, 'error'); }
+          } }, 'Delete dish')
+        : h('span'),
+      h('div', { style: 'display:flex;gap:10px;' },
+        h('button', { type: 'button', class: 'btn', onclick: () => m.close() }, 'Cancel'),
+        h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save changes' : 'Add dish'),
+      ),
+    ),
+  );
+
+  const m = openModal(
+    h('div', {},
+      h('h3', { style: 'margin-bottom:16px;' }, isEdit ? `Edit — ${item.title}` : 'Add dish to Plat du Jour'),
+      form,
+    ),
+    { large: true },
+  );
+}
+
+function openPlatDuJourDetail(item) {
+  const wrap = h('div', { class: 'pdj-detail' });
+  if (item.image_url) {
+    wrap.appendChild(h('img', { src: item.image_url, class: 'pdj-detail-img' }));
+  }
+  wrap.appendChild(h('div', { style: 'font-size:22px;font-weight:800;color:var(--navy);margin-top:4px;' }, item.title));
+  if (item.subtitle) wrap.appendChild(h('div', { class: 'muted-text', style: 'font-size:14px;margin-top:4px;' }, item.subtitle));
+  if (item.description) wrap.appendChild(h('p', { style: 'margin-top:14px;font-size:14px;line-height:1.65;' }, item.description));
+  if (item.price != null) wrap.appendChild(h('div', { style: 'margin-top:16px;font-size:20px;font-weight:700;color:var(--navy);' }, `$${Number(item.price).toFixed(2)}`));
+  if (item.is_today) wrap.appendChild(h('div', { style: 'margin-top:12px;display:inline-block;background:#fdf6ea;border:1px solid var(--gold);color:#8c6620;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;' }, "✓ Today's plat du jour"));
+  wrap.appendChild(h('div', { style: 'margin-top:24px;display:flex;justify-content:space-between;align-items:center;gap:10px;' },
+    h('button', { class: 'btn', onclick: () => { m.close(); openPlatDuJourModal(item); } }, 'Edit dish'),
+    h('button', { class: 'btn primary', onclick: () => m.close() }, 'Close'),
+  ));
+  const m = openModal(wrap, { large: true });
+}
+
+// =========================== TODAY'S ACTIVITIES ===========================
+async function renderTodayActivities() {
+  const body = $('#page-body');
+  $('#page-subtitle').textContent = 'Check the activities and events happening at the resort today. Click any to view details.';
+  $('#page-actions').appendChild(h('button', { class: 'btn primary', onclick: () => openActivityModal() }, '+ Add activity'));
+
+  const allItems = await api.activities();
+
+  const searchInput = h('input', { type: 'search', placeholder: 'Search activities…', class: 'pdj-search' });
+  body.appendChild(searchInput);
+
+  if (!allItems.length) {
+    body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No activities yet. Add your first one.')));
+    return;
+  }
+
+  const table = h('table', { class: 'table fixed' });
+  table.append(h('thead', {}, h('tr', {},
+    h('th', { style: 'width:80px;' }),
+    h('th', {}, 'Activity'),
+    h('th', {}, 'When'),
+    h('th', {}, 'Location'),
+    h('th', { style: 'width:70px;' }),
+  )));
+  const tbody = h('tbody');
+  const emptyState = h('div', { class: 'pdj-empty' }, 'No activities match your search.');
+  emptyState.style.display = 'none';
+
+  const renderRows = (q) => {
+    tbody.innerHTML = '';
+    const query = (q || '').trim().toLowerCase();
+    const filtered = query
+      ? allItems.filter(it =>
+          (it.title || '').toLowerCase().includes(query) ||
+          (it.subtitle || '').toLowerCase().includes(query) ||
+          (it.location || '').toLowerCase().includes(query) ||
+          (it.description || '').toLowerCase().includes(query))
+      : allItems;
+
+    emptyState.style.display = filtered.length ? 'none' : 'block';
+    if (!filtered.length) return;
+
+    for (const item of filtered) {
+      const toggle = h('input', { type: 'checkbox', style: 'width:18px;height:18px;cursor:pointer;accent-color:var(--navy);' });
+      toggle.checked = !!item.is_today;
+
+      const imgEl = item.image_url
+        ? h('img', { src: item.image_url, style: 'width:52px;height:52px;object-fit:cover;border-radius:8px;display:block;' })
+        : h('div', { style: 'width:52px;height:52px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;' }, '🎉');
+
+      const tr = h('tr', { class: item.is_today ? 'row-plat' : '', style: 'cursor:pointer;' },
+        h('td', { style: 'width:80px;' }, imgEl),
+        h('td', {},
+          h('div', { style: 'font-weight:700;font-size:14px;' }, item.title),
+          item.subtitle ? h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' }, item.subtitle) : null,
+        ),
+        h('td', {}, item.time_label || h('span', { class: 'muted-text' }, '—')),
+        h('td', {}, item.location || h('span', { class: 'muted-text' }, '—')),
+        h('td', { class: 'right' }, toggle),
+      );
+
+      tr.addEventListener('click', (e) => {
+        if (toggle.contains(e.target)) return;
+        openActivityDetail(item);
+      });
+
+      toggle.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const val = toggle.checked ? 1 : 0;
+        try {
+          await api.updateActivity(item.id, { is_today: val });
+          item.is_today = val;
+          tr.className = val ? 'row-plat' : '';
+          toast(val ? `${item.title} set for today` : `${item.title} removed from today`);
+        } catch (err) {
+          toggle.checked = !toggle.checked;
+          toast(err.message, 'error');
+        }
+      });
+
+      tbody.append(tr);
+    }
+  };
+
+  searchInput.addEventListener('input', (e) => renderRows(e.target.value));
+  renderRows('');
+
+  table.appendChild(tbody);
+  body.appendChild(h('div', { class: 'card pdj-card' }, table, emptyState));
+}
+
+function openActivityModal(item = null) {
+  const isEdit = !!item;
+
+  const previewEl = h('div', { class: 'pdj-img-preview' });
+  if (item?.image_url) {
+    previewEl.appendChild(h('img', { src: item.image_url, style: 'width:100%;height:100%;object-fit:cover;' }));
+  } else {
+    previewEl.textContent = '🎉';
+  }
+  const fileInput = h('input', { type: 'file', accept: 'image/*', style: 'font-size:14px;' });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewEl.innerHTML = '';
+      previewEl.appendChild(h('img', { src: e.target.result, style: 'width:100%;height:100%;object-fit:cover;' }));
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const titleInput = h('input', { type: 'text', name: 'title', required: true, placeholder: 'e.g. Sunset Yoga' });
+  if (item?.title) titleInput.value = item.title;
+  const subtitleInput = h('input', { type: 'text', placeholder: 'e.g. Open-air session on the beach' });
+  if (item?.subtitle) subtitleInput.value = item.subtitle;
+  const timeInput = h('input', { type: 'text', placeholder: 'e.g. 6:00 PM – 7:00 PM' });
+  if (item?.time_label) timeInput.value = item.time_label;
+  const locationInput = h('input', { type: 'text', placeholder: 'e.g. Beach deck' });
+  if (item?.location) locationInput.value = item.location;
+  const descInput = h('textarea', { rows: '3', placeholder: 'e.g. A relaxing 60-minute outdoor yoga class led by our wellness coach. All levels welcome.' });
+  if (item?.description) descInput.value = item.description;
+  const priceInput = h('input', { type: 'number', step: '0.01', min: '0', placeholder: 'e.g. 25.00 (leave blank if free)' });
+  if (item?.price != null) priceInput.value = String(item.price);
+
+  const form = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    let image_url = item?.image_url || null;
+    const file = fileInput.files[0];
+    if (file) image_url = await readImageAsBase64(file);
+    const payload = {
+      title: titleInput.value.trim(),
+      subtitle: subtitleInput.value.trim() || null,
+      description: descInput.value.trim() || null,
+      location: locationInput.value.trim() || null,
+      time_label: timeInput.value.trim() || null,
+      price: priceInput.value ? Number(priceInput.value) : null,
+      image_url,
+    };
+    try {
+      if (isEdit) { await api.updateActivity(item.id, payload); toast('Activity updated'); }
+      else { await api.createActivity(payload); toast('Activity added'); }
+      m.close();
+      setTab('today');
+    } catch (err) { toast(err.message, 'error'); }
+  }},
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Photo'),
+      h('div', { style: 'display:flex;align-items:center;gap:14px;' },
+        previewEl,
+        h('div', {},
+          fileInput,
+          h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:4px;' }, 'JPG or PNG · max ~2 MB'),
+        ),
+      ),
+    ),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Title'), titleInput),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Subtitle'), subtitleInput),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'When'), timeInput),
+      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Location'), locationInput),
+    ),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Description'), descInput),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Price ($)'), priceInput),
+    h('div', { style: 'display:flex;gap:10px;margin-top:20px;justify-content:space-between;align-items:center;' },
+      isEdit
+        ? h('button', { type: 'button', class: 'btn danger sm', onclick: async () => {
+            if (!confirm(`Delete "${item.title}"?`)) return;
+            try { await api.deleteActivity(item.id); toast('Activity deleted'); m.close(); setTab('today'); }
+            catch (err) { toast(err.message, 'error'); }
+          } }, 'Delete activity')
+        : h('span'),
+      h('div', { style: 'display:flex;gap:10px;' },
+        h('button', { type: 'button', class: 'btn', onclick: () => m.close() }, 'Cancel'),
+        h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save changes' : 'Add activity'),
+      ),
+    ),
+  );
+
+  const m = openModal(
+    h('div', {},
+      h('h3', { style: 'margin-bottom:16px;' }, isEdit ? `Edit — ${item.title}` : 'Add activity or event'),
+      form,
+    ),
+    { large: true },
+  );
+}
+
+function openActivityDetail(item) {
+  const wrap = h('div', { class: 'pdj-detail' });
+  if (item.image_url) {
+    wrap.appendChild(h('img', { src: item.image_url, class: 'pdj-detail-img' }));
+  }
+  wrap.appendChild(h('div', { style: 'font-size:22px;font-weight:800;color:var(--navy);margin-top:4px;' }, item.title));
+  if (item.subtitle) wrap.appendChild(h('div', { class: 'muted-text', style: 'font-size:14px;margin-top:4px;' }, item.subtitle));
+  if (item.time_label || item.location) {
+    wrap.appendChild(h('div', { style: 'margin-top:12px;display:flex;gap:18px;font-size:13px;color:var(--subtle);' },
+      item.time_label ? h('div', {}, '⏱ ' + item.time_label) : null,
+      item.location ? h('div', {}, '📍 ' + item.location) : null,
+    ));
+  }
+  if (item.description) wrap.appendChild(h('p', { style: 'margin-top:14px;font-size:14px;line-height:1.65;' }, item.description));
+  if (item.price != null) wrap.appendChild(h('div', { style: 'margin-top:16px;font-size:20px;font-weight:700;color:var(--navy);' }, `$${Number(item.price).toFixed(2)}`));
+  if (item.is_today) wrap.appendChild(h('div', { style: 'margin-top:12px;display:inline-block;background:#fdf6ea;border:1px solid var(--gold);color:#8c6620;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;' }, '✓ Happening today'));
+  wrap.appendChild(h('div', { style: 'margin-top:24px;display:flex;justify-content:space-between;align-items:center;gap:10px;' },
+    h('button', { class: 'btn', onclick: () => { m.close(); openActivityModal(item); } }, 'Edit activity'),
+    h('button', { class: 'btn primary', onclick: () => m.close() }, 'Close'),
+  ));
+  const m = openModal(wrap, { large: true });
 }
 
 // =========================== NOTIFICATIONS ===========================

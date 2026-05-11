@@ -236,10 +236,10 @@ export default function TennisScreen({ navigation }) {
       selectionRef.current = null;
       dragActive.current = false;
       panClaimed.current = false;
-      setSelection(null);
-      if (!sel) return;
+      if (!sel) { setSelection(null); return; }
       const start = new Date(sel.day); start.setHours(sel.startHour, 0, 0, 0);
       const hours = sel.endHour - sel.startHour + 1;
+      // Keep selection highlighted in background while confirm modal is open.
       setPickedSlot({ start, hours });
     },
     onPanResponderTerminate: () => {
@@ -269,6 +269,7 @@ export default function TennisScreen({ navigation }) {
         party_size: 2,
       });
       setPickedSlot(null);
+      setSelection(null);
       await loadWeek();
       setBookingSuccessVisible(true);
     } catch (e) {
@@ -575,7 +576,7 @@ export default function TennisScreen({ navigation }) {
                     const hours = sel.endHour - sel.startHour + 1;
                     selectionRef.current = null;
                     dragActive.current = false;
-                    setSelection(null);
+                    // Keep selection highlighted in background while confirm modal is open.
                     setPickedSlot({ start: startTime, hours });
                     return;
                   }
@@ -594,6 +595,7 @@ export default function TennisScreen({ navigation }) {
                       return;
                     }
                     const startTime = new Date(cell.day); startTime.setHours(cell.hour, 0, 0, 0);
+                    setSelection({ day: cell.day, startHour: cell.hour, endHour: cell.hour });
                     setPickedSlot({ start: startTime, hours: 1 });
                   }
                 }}
@@ -636,7 +638,7 @@ export default function TennisScreen({ navigation }) {
         transparent
         animationType="fade"
         visible={!!pickedSlot}
-        onRequestClose={() => setPickedSlot(null)}
+        onRequestClose={() => { setPickedSlot(null); setSelection(null); }}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -655,7 +657,7 @@ export default function TennisScreen({ navigation }) {
               );
             })() : null}
             <View style={styles.modalActions}>
-              <Pressable style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setPickedSlot(null)}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => { setPickedSlot(null); setSelection(null); }}>
                 <Text style={styles.modalBtnGhostText}>Cancel</Text>
               </Pressable>
               <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} disabled={submitting} onPress={confirmBooking}>
