@@ -12,35 +12,49 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
-import { useService, serviceImages } from '../data/services';
+import { useFacility, facilityImages, toAbsolute } from '../data/facilities';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
 const FALLBACK_IMAGES = [require('../assets/pools.png')];
 const POOL_PLACEHOLDER = require('../assets/pools.png');
 const FALLBACK_TITLE = 'Pools';
 const FALLBACK_DESCRIPTION = 'Three outdoor pools right on the seafront — one Olympic-size — plus a heated indoor pool at SEArenity Club.';
-
-const OUTDOOR_POOLS = [
+const FALLBACK_OUTDOOR_POOLS = [
   { id: 'olympic', name: 'Olympic Pool', subtitle: 'No pool floats allowed', image: POOL_PLACEHOLDER, mapPinId: 'olympic-pool' },
   { id: 'outdoor', name: 'Children Pool', subtitle: 'Pool floats allowed', image: POOL_PLACEHOLDER, mapPinId: 'children-pool' },
-  {
-    id: 'kids',
-    name: "Kids' Fountain",
-    subtitle: 'Supervised by parents',
-    image: POOL_PLACEHOLDER,
-    mapPinId: 'fountain-pool',
-  },
+  { id: 'kids', name: "Kids' Fountain", subtitle: 'Supervised by parents', image: POOL_PLACEHOLDER, mapPinId: 'fountain-pool' },
 ];
+const FALLBACK_INDOOR = {
+  name: 'Indoor Pool',
+  subtitle: 'At SEArenity Club · Swimming cap is mandatory',
+};
+
 
 export default function PoolsScreen({ navigation }) {
   const [index, setIndex] = useState(0);
-  const s = useService('pools');
-  const title = s?.name || FALLBACK_TITLE;
-  const description = s?.description || FALLBACK_DESCRIPTION;
-  const hours = s?.hours || 'Outdoor pools · 7:00 AM – 7:00 PM';
-  const extra = s?.extra_info || 'Available near the Pool Bar';
-  const apiImgs = serviceImages(s);
+  const f = useFacility('pools');
+  const title = f?.name || FALLBACK_TITLE;
+  const description = f?.description || FALLBACK_DESCRIPTION;
+  const hours = f?.hours || 'Outdoor pools · 7:00 AM – 7:00 PM';
+  const extra = f?.extra_info || 'Available near the Pool Bar';
+  const apiImgs = facilityImages(f);
   const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
+  // Outdoor pools list — from admin if present, else hardcoded fallback.
+  // For facility_items the map pin id is stored in `description`.
+  const outdoorPools = (f?.items && f.items.filter(i => i.kind === 'pool').length)
+    ? f.items.filter(i => i.kind === 'pool').map(p => ({
+        id: String(p.id),
+        name: p.name,
+        subtitle: p.subtitle || '',
+        image: p.image_url ? { uri: toAbsolute(p.image_url) } : POOL_PLACEHOLDER,
+        mapPinId: p.description || null,
+      }))
+    : FALLBACK_OUTDOOR_POOLS;
+  const indoor = {
+    name: f?.indoor_pool_name || FALLBACK_INDOOR.name,
+    subtitle: f?.indoor_pool_subtitle || FALLBACK_INDOOR.subtitle,
+    image: f?.indoor_pool_image_url ? { uri: toAbsolute(f.indoor_pool_image_url) } : POOL_PLACEHOLDER,
+  };
 
   useEffect(() => {
     if (heroImages.length <= 1) return;
@@ -114,7 +128,7 @@ export default function PoolsScreen({ navigation }) {
 
           <Text style={styles.sectionLabel}>OUTDOOR POOLS</Text>
           <View style={styles.poolsCard}>
-            {OUTDOOR_POOLS.map((p, i) => (
+            {outdoorPools.map((p, i) => (
               <React.Fragment key={p.id}>
                 <Pressable
                   style={({ pressed }) => [
@@ -138,7 +152,7 @@ export default function PoolsScreen({ navigation }) {
                     style={{ marginRight: 12 }}
                   />
                 </Pressable>
-                {i < OUTDOOR_POOLS.length - 1 ? <View style={styles.poolDivider} /> : null}
+                {i < outdoorPools.length - 1 ? <View style={styles.poolDivider} /> : null}
               </React.Fragment>
             ))}
           </View>
@@ -149,7 +163,7 @@ export default function PoolsScreen({ navigation }) {
             style={({ pressed }) => [styles.indoorCard, pressed && { opacity: 0.92 }]}
           >
             <ImageBackground
-              source={POOL_PLACEHOLDER}
+              source={indoor.image}
               style={StyleSheet.absoluteFill}
               imageStyle={{ borderRadius: radius.lg }}
             >
@@ -160,10 +174,8 @@ export default function PoolsScreen({ navigation }) {
                 <MaterialCommunityIcons name="home-roof" size={12} color="#fff" />
                 <Text style={styles.indoorBadgeText}>INDOOR</Text>
               </View>
-              <Text style={styles.indoorTitle}>Indoor Pool</Text>
-              <Text style={styles.indoorSubtitle}>
-                At SEArenity Club · Swimming cap is mandatory
-              </Text>
+              <Text style={styles.indoorTitle}>{indoor.name}</Text>
+              <Text style={styles.indoorSubtitle}>{indoor.subtitle}</Text>
               <View style={styles.indoorCta}>
                 <Text style={styles.indoorCtaText}>Open SEArenity Club</Text>
                 <MaterialCommunityIcons name="arrow-right" size={16} color="#fff" />

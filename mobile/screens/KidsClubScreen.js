@@ -8,27 +8,39 @@ import {
   ImageBackground,
   StyleSheet,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
+import { useFacility, facilityImages } from '../data/facilities';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const HERO_IMAGES = [
+const FALLBACK_IMAGES = [
   require('../assets/kids-activities.jpg'),
   require('../assets/kidsclub1.jpg'),
 ];
+const FALLBACK_TITLE = 'Kids Club';
+const FALLBACK_DESCRIPTION = 'Daily activities, games, and supervised fun for kids during your stay.';
 
 export default function KidsClubScreen({ navigation }) {
   const [index, setIndex] = useState(0);
+  const facility = useFacility('kids_club');
+  const apiImgs = facilityImages(facility);
+  const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
+  const heroTitle = facility?.name || FALLBACK_TITLE;
+  const heroDescription = facility?.description || FALLBACK_DESCRIPTION;
+  const phone = facility?.phone || null;
+  const hours = facility?.hours || null;
+  const location = facility?.location || 'By the playground · Activities zone';
 
   useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
+    if (heroImages.length <= 1) return;
     const id = setInterval(() => {
-      setIndex(prev => (prev + 1) % HERO_IMAGES.length);
+      setIndex(prev => (prev + 1) % heroImages.length);
     }, 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [heroImages.length]);
 
   return (
     <View style={styles.container}>
@@ -38,7 +50,7 @@ export default function KidsClubScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 60 }}
       >
         <View style={styles.hero}>
-          {HERO_IMAGES.map((src, i) => (
+          {heroImages.map((src, i) => (
             <View
               key={i}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
@@ -57,16 +69,39 @@ export default function KidsClubScreen({ navigation }) {
             </Pressable>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>Kids Club</Text>
+            <Text style={styles.heroTitle}>{heroTitle}</Text>
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.description}>
-            Daily activities, games, and supervised fun for kids during your stay.
-          </Text>
+          <Text style={styles.description}>{heroDescription}</Text>
 
           <View style={styles.infoCard}>
+            {hours ? (
+              <View style={styles.infoRow}>
+                <MaterialCommunityIcons name="clock-outline" size={22} color={colors.accent} style={{ marginRight: 14 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>Hours</Text>
+                  <Text style={styles.rowSubtitle}>{hours}</Text>
+                </View>
+              </View>
+            ) : null}
+            {phone ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.infoRow,
+                  pressed && { backgroundColor: colors.bg },
+                ]}
+                onPress={() => Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`)}
+              >
+                <MaterialCommunityIcons name="phone-outline" size={22} color={colors.accent} style={{ marginRight: 14 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>Call</Text>
+                  <Text style={styles.rowSubtitle}>{phone}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} />
+              </Pressable>
+            ) : null}
             <Pressable
               style={({ pressed }) => [
                 styles.infoRow,
@@ -82,7 +117,7 @@ export default function KidsClubScreen({ navigation }) {
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Location</Text>
-                <Text style={styles.rowSubtitle}>By the playground · Activities zone</Text>
+                <Text style={styles.rowSubtitle}>{location}</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} />
             </Pressable>

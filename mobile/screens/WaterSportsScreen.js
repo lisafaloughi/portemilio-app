@@ -12,13 +12,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
+import { useFacility, facilityImages, toAbsolute } from '../data/facilities';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const HERO_IMAGES = [require('../assets/water-sports.jpg')];
+const FALLBACK_IMAGES = [require('../assets/water-sports.jpg')];
 const PLACEHOLDER_IMG = require('../assets/water-sports.jpg');
-const WS_PHONE = '+9619123468';
-
-const SPORTS = [
+const WS_PHONE_FALLBACK = '+9619123468';
+const FALLBACK_TITLE = 'Water Sports';
+const FALLBACK_LEAD = 'To book a session, please call us or visit the activity desk by the seafront.';
+const FALLBACK_SPORTS = [
   { id: 'jet-ski', name: 'Jet ski', price: '$50 / 15 min', image: PLACEHOLDER_IMG },
   { id: 'kayak', name: 'Kayak', price: '$20 / hr', image: require('../assets/water-sports/kayak.png') },
   { id: 'rowboat', name: 'Rowboat', price: '$15 / hr', image: require('../assets/water-sports/boatrow.png') },
@@ -29,16 +31,30 @@ const SPORTS = [
 
 export default function WaterSportsScreen({ navigation }) {
   const [index, setIndex] = useState(0);
+  const facility = useFacility('water_sports');
+  const apiImgs = facilityImages(facility);
+  const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
+  const heroTitle = facility?.name || FALLBACK_TITLE;
+  const heroLead = facility?.description || FALLBACK_LEAD;
+  const phone = facility?.phone || WS_PHONE_FALLBACK;
+  const sports = (facility?.items && facility.items.filter(i => i.kind === 'sport').length)
+    ? facility.items.filter(i => i.kind === 'sport').map(s => ({
+        id: String(s.id),
+        name: s.name,
+        price: s.subtitle || '',
+        image: s.image_url ? { uri: toAbsolute(s.image_url) } : PLACEHOLDER_IMG,
+      }))
+    : FALLBACK_SPORTS;
 
   useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
+    if (heroImages.length <= 1) return;
     const id = setInterval(() => {
-      setIndex(prev => (prev + 1) % HERO_IMAGES.length);
+      setIndex(prev => (prev + 1) % heroImages.length);
     }, 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [heroImages.length]);
 
-  const callDesk = () => Linking.openURL(`tel:${WS_PHONE.replace(/\s+/g, '')}`);
+  const callDesk = () => Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`);
   const openOnMap = () => navigation.navigate('ResortMap', { pinId: 'water-sports' });
 
   return (
@@ -49,7 +65,7 @@ export default function WaterSportsScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 60 }}
       >
         <View style={styles.hero}>
-          {HERO_IMAGES.map((src, i) => (
+          {heroImages.map((src, i) => (
             <View
               key={i}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
@@ -68,14 +84,12 @@ export default function WaterSportsScreen({ navigation }) {
             </Pressable>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>Water Sports</Text>
+            <Text style={styles.heroTitle}>{heroTitle}</Text>
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.lead}>
-            To book a session, please call us or visit the activity desk by the seafront.
-          </Text>
+          <Text style={styles.lead}>{heroLead}</Text>
 
           <View style={styles.actionRow}>
             <Pressable style={styles.actionBtn} onPress={callDesk}>
@@ -90,7 +104,7 @@ export default function WaterSportsScreen({ navigation }) {
 
           <Text style={styles.sectionLabel}>SPORTS & RATES</Text>
 
-          {SPORTS.map(s => (
+          {sports.map(s => (
             <View key={s.id} style={styles.sportCard}>
               <Image source={s.image} style={styles.sportImage} />
               <View style={styles.sportBody}>

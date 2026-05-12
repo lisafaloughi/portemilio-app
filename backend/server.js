@@ -83,12 +83,15 @@ api.put('/auth/me', authRequired, (req, res) => {
 
 // ---------- Public catalog ----------
 api.get('/facilities', (_, res) => {
-  res.json(db.prepare('SELECT * FROM facilities ORDER BY name').all());
+  const rows = db.prepare('SELECT * FROM facilities ORDER BY name').all();
+  const getItems = db.prepare('SELECT id, kind, name, subtitle, description, phone, image_url, sub_items, sort_order FROM facility_items WHERE facility_id = ? ORDER BY sort_order, id');
+  res.json(rows.map(r => ({ ...r, items: getItems.all(r.id) })));
 });
 api.get('/facilities/:key', (req, res) => {
   const row = db.prepare('SELECT * FROM facilities WHERE key = ? OR id = ?').get(req.params.key, req.params.key);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json(row);
+  const items = db.prepare('SELECT id, kind, name, subtitle, description, phone, image_url, sub_items, sort_order FROM facility_items WHERE facility_id = ? ORDER BY sort_order, id').all(row.id);
+  res.json({ ...row, items });
 });
 
 api.get('/restaurants', (_, res) => {
@@ -106,14 +109,17 @@ api.get('/restaurants/:id', (req, res) => {
 
 // Other Services (Front Desk, Heritage, Marina, etc) — admin-editable content.
 api.get('/services', (_, res) => {
-  res.json(db.prepare('SELECT * FROM services ORDER BY sort_order, name').all());
+  const rows = db.prepare('SELECT * FROM services ORDER BY sort_order, name').all();
+  const getItems = db.prepare('SELECT id, kind, name, subtitle, image_url, extra, sort_order FROM service_items WHERE service_id = ? ORDER BY sort_order, id');
+  res.json(rows.map(r => ({ ...r, items: getItems.all(r.id) })));
 });
 api.get('/services/:key', (req, res) => {
   const r = /^\d+$/.test(req.params.key)
     ? db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.key)
     : db.prepare('SELECT * FROM services WHERE key = ?').get(req.params.key);
   if (!r) return res.status(404).json({ error: 'Not found' });
-  res.json(r);
+  const items = db.prepare('SELECT id, kind, name, subtitle, image_url, extra, sort_order FROM service_items WHERE service_id = ? ORDER BY sort_order, id').all(r.id);
+  res.json({ ...r, items });
 });
 
 // Landmarks — sightseeing destinations and relevant services (pharmacies,
@@ -293,7 +299,11 @@ admin.post('/upload', upload.single('file'), (req, res) => {
 });
 
 // --- Facilities CRUD ---
-admin.get('/facilities', (_, res) => res.json(db.prepare('SELECT * FROM facilities').all()));
+admin.get('/facilities', (_, res) => {
+  const rows = db.prepare('SELECT * FROM facilities ORDER BY name').all();
+  const getItems = db.prepare('SELECT id, kind, name, subtitle, description, phone, image_url, sub_items, sort_order FROM facility_items WHERE facility_id = ? ORDER BY sort_order, id');
+  res.json(rows.map(r => ({ ...r, items: getItems.all(r.id) })));
+});
 admin.post('/facilities', (req, res) => {
   const f = req.body;
   const r = db.prepare(`
@@ -312,17 +322,123 @@ admin.put('/facilities/:id', (req, res) => {
   db.prepare(`
     UPDATE facilities SET
       key=COALESCE(@key,key), name=COALESCE(@name,name), category=COALESCE(@category,category),
-      description=COALESCE(@description,description), hours=COALESCE(@hours,hours),
-      location=COALESCE(@location,location), phone=COALESCE(@phone,phone),
+      description=@description, hours=@hours,
+      location=@location, phone=@phone,
       image_url=COALESCE(@image_url,image_url), bookable=COALESCE(@bookable,bookable),
-      price=COALESCE(@price,price), extra_info=COALESCE(@extra_info,extra_info),
-      image_urls=@image_urls
+      price=@price, extra_info=@extra_info,
+      image_urls=@image_urls,
+      instagram_url=@instagram_url,
+      whatsapp_url=@whatsapp_url,
+      app_store_url=@app_store_url,
+      warning_message=@warning_message,
+      coach_hint=@coach_hint,
+      indoor_pool_name=@indoor_pool_name,
+      indoor_pool_subtitle=@indoor_pool_subtitle,
+      indoor_pool_image_url=@indoor_pool_image_url
     WHERE id=@id
-  `).run({ id: Number(req.params.id), key: null, name: null, category: null, description: null, hours: null, location: null, phone: null, image_url: null, bookable: null, price: null, extra_info: null, image_urls: null, ...f });
+  `).run({
+    id: Number(req.params.id),
+    key: null, name: null, category: null, description: null, hours: null,
+    location: null, phone: null, image_url: null, bookable: null, price: null,
+    extra_info: null, image_urls: null,
+    instagram_url: null, whatsapp_url: null, app_store_url: null, warning_message: null,
+    coach_hint: null,
+    indoor_pool_name: null, indoor_pool_subtitle: null, indoor_pool_image_url: null,
+    ...f,
+  });
   res.json({ ok: true });
 });
 admin.delete('/facilities/:id', (req, res) => {
   db.prepare('DELETE FROM facilities WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Facility & Service items (coaches, sports, services, pools, etc) ---
+admin.get('/facility-items/:facility_id', (req, res) => {
+  res.json(db.prepare('SELECT * FROM facility_items WHERE facility_id = ? ORDER BY sort_order, id').all(Number(req.params.facility_id)));
+});
+admin.post('/facility-items', (req, res) => {
+  const b = req.body || {};
+  if (!b.facility_id || !b.name || !b.kind) return res.status(400).json({ error: 'facility_id, kind, name required' });
+  const r = db.prepare(`
+    INSERT INTO facility_items (facility_id, kind, name, subtitle, description, phone, image_url, sub_items, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    Number(b.facility_id), b.kind, b.name,
+    b.subtitle || null, b.description || null,
+    b.phone || null, b.image_url || null,
+    b.sub_items || null,
+    b.sort_order || 0,
+  );
+  res.json({ id: r.lastInsertRowid });
+});
+admin.put('/facility-items/:id', (req, res) => {
+  const b = req.body || {};
+  db.prepare(`
+    UPDATE facility_items SET
+      name=COALESCE(@name, name),
+      subtitle=@subtitle,
+      description=@description,
+      phone=@phone,
+      image_url=@image_url,
+      sub_items=@sub_items,
+      sort_order=COALESCE(@sort_order, sort_order)
+    WHERE id=@id
+  `).run({
+    id: Number(req.params.id),
+    name: b.name || null,
+    subtitle: b.subtitle == null ? null : b.subtitle,
+    description: b.description == null ? null : b.description,
+    phone: b.phone == null ? null : b.phone,
+    image_url: b.image_url == null ? null : b.image_url,
+    sub_items: b.sub_items == null ? null : b.sub_items,
+    sort_order: b.sort_order == null ? null : b.sort_order,
+  });
+  res.json({ ok: true });
+});
+admin.delete('/facility-items/:id', (req, res) => {
+  db.prepare('DELETE FROM facility_items WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+admin.get('/service-items/:service_id', (req, res) => {
+  res.json(db.prepare('SELECT * FROM service_items WHERE service_id = ? ORDER BY sort_order, id').all(Number(req.params.service_id)));
+});
+admin.post('/service-items', (req, res) => {
+  const b = req.body || {};
+  if (!b.service_id || !b.name || !b.kind) return res.status(400).json({ error: 'service_id, kind, name required' });
+  const r = db.prepare(`
+    INSERT INTO service_items (service_id, kind, name, subtitle, image_url, extra, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    Number(b.service_id), b.kind, b.name,
+    b.subtitle || null, b.image_url || null, b.extra || null,
+    b.sort_order || 0,
+  );
+  res.json({ id: r.lastInsertRowid });
+});
+admin.put('/service-items/:id', (req, res) => {
+  const b = req.body || {};
+  db.prepare(`
+    UPDATE service_items SET
+      name=COALESCE(@name, name),
+      subtitle=@subtitle,
+      image_url=@image_url,
+      extra=@extra,
+      sort_order=COALESCE(@sort_order, sort_order)
+    WHERE id=@id
+  `).run({
+    id: Number(req.params.id),
+    name: b.name || null,
+    subtitle: b.subtitle == null ? null : b.subtitle,
+    image_url: b.image_url == null ? null : b.image_url,
+    extra: b.extra == null ? null : b.extra,
+    sort_order: b.sort_order == null ? null : b.sort_order,
+  });
+  res.json({ ok: true });
+});
+admin.delete('/service-items/:id', (req, res) => {
+  db.prepare('DELETE FROM service_items WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -475,7 +591,11 @@ admin.delete('/landmark-locations/:id', (req, res) => {
 });
 
 // --- Services CRUD (Marina + Other Services) ---
-admin.get('/services', (_, res) => res.json(db.prepare('SELECT * FROM services ORDER BY sort_order, name').all()));
+admin.get('/services', (_, res) => {
+  const rows = db.prepare('SELECT * FROM services ORDER BY sort_order, name').all();
+  const getItems = db.prepare('SELECT id, kind, name, subtitle, image_url, extra, sort_order FROM service_items WHERE service_id = ? ORDER BY sort_order, id');
+  res.json(rows.map(r => ({ ...r, items: getItems.all(r.id) })));
+});
 admin.put('/services/:id', (req, res) => {
   const b = req.body;
   db.prepare(`
@@ -488,12 +608,15 @@ admin.put('/services/:id', (req, res) => {
       hours=@hours,
       location=@location,
       extra_info=@extra_info,
-      image_urls=@image_urls
+      image_urls=@image_urls,
+      website=@website,
+      instagram_url=@instagram_url
     WHERE id=@id
   `).run({
     id: Number(req.params.id),
     name: null, subtitle: null, description: null, phone: null, email: null,
     hours: null, location: null, extra_info: null, image_urls: null,
+    website: null, instagram_url: null,
     ...b,
   });
   res.json({ ok: true });

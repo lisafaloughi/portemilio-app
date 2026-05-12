@@ -96,6 +96,14 @@ const api = {
   createFacility: (b) => call(`${ADMIN}/facilities`, { method: 'POST', body: b }),
   updateFacility: (id, b) => call(`${ADMIN}/facilities/${id}`, { method: 'PUT', body: b }),
   deleteFacility: (id) => call(`${ADMIN}/facilities/${id}`, { method: 'DELETE' }),
+  facilityItems: (facilityId) => call(`${ADMIN}/facility-items/${facilityId}`),
+  createFacilityItem: (b) => call(`${ADMIN}/facility-items`, { method: 'POST', body: b }),
+  updateFacilityItem: (id, b) => call(`${ADMIN}/facility-items/${id}`, { method: 'PUT', body: b }),
+  deleteFacilityItem: (id) => call(`${ADMIN}/facility-items/${id}`, { method: 'DELETE' }),
+  serviceItems: (serviceId) => call(`${ADMIN}/service-items/${serviceId}`),
+  createServiceItem: (b) => call(`${ADMIN}/service-items`, { method: 'POST', body: b }),
+  updateServiceItem: (id, b) => call(`${ADMIN}/service-items/${id}`, { method: 'PUT', body: b }),
+  deleteServiceItem: (id) => call(`${ADMIN}/service-items/${id}`, { method: 'DELETE' }),
   services: () => call(`${ADMIN}/services`),
   updateService: (id, b) => call(`${ADMIN}/services/${id}`, { method: 'PUT', body: b }),
   marinaBoats: () => call(`${ADMIN}/marina-boats`),
@@ -269,7 +277,7 @@ const TABS = [
   { id: 'deliveries', label: 'Deliveries' },
   { id: 'content', label: 'Property Details' },
   { id: 'platdujour', label: 'Plat du Jour' },
-  { id: 'today', label: "Today's Activities & Events" },
+  { id: 'today', label: "Activities & Events" },
   { id: 'notifications', label: 'Notifications' },
 ];
 
@@ -1616,27 +1624,22 @@ async function renderFacilities(body) {
   state.facilities = list;
   if (!list.length) { body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No facilities yet.'))); return; }
 
+  // Nursery is edited from inside the Kids Club page (mirrors the Pools /
+  // Indoor Pool flow), so it doesn't get its own row in this table.
+  const visibleList = list.filter(f => f.key !== 'nursery');
+
   const t = h('table', { class: 'table' });
   t.append(h('thead', {}, h('tr', {},
-    h('th', {}, 'Name'), h('th', {}, 'Category'), h('th', {}, 'Hours'),
+    h('th', {}, 'Name'), h('th', {}, 'Hours'),
     h('th', {}, 'Location'), h('th', {}, 'Phone'),
-    h('th', { class: 'right' }, ''),
   )));
   const tb = h('tbody');
-  for (const f of list) {
+  for (const f of visibleList) {
     tb.append(h('tr', { style: 'cursor: pointer;', onclick: () => openFacilityModal(f) },
-      h('td', {}, h('div', { style: 'font-weight: 600;' }, f.name), f.category ? h('div', { class: 'muted-text' }, f.category) : null),
-      h('td', {}, f.category || '—'),
+      h('td', {}, h('div', { style: 'font-weight: 600;' }, f.name)),
       h('td', {}, f.hours || '—'),
       h('td', {}, f.location || '—'),
       h('td', {}, f.phone || '—'),
-      h('td', { class: 'right' },
-        h('button', { class: 'icon-btn danger', onclick: async (e) => {
-          e.stopPropagation();
-          if (!confirm(`Delete ${f.name}?`)) return;
-          try { await api.deleteFacility(f.id); toast('Deleted'); setTab('content'); } catch (e) { toast(e.message, 'error'); }
-        } }, 'Delete'),
-      ),
     ));
   }
   t.appendChild(tb);
@@ -1830,7 +1833,293 @@ function createImageManager(initialUrls = [], label = 'Images') {
   return { block, grid, getUrls: () => imageUrls.slice() };
 }
 
-function openFacilityModal(f) {
+// Per-facility config — fields actually shown on each facility's screen +
+// the URL fields and child-items sections that apply.
+//
+// `items` describes the sub-list (coaches / sports / services / plans) and
+// which sub-fields are editable per row.
+const FACILITY_FIELDS = {
+  salon_antoinette: {
+    phone: true, hours: false, location: false, price: false, extra_info: false,
+    instagram: true,
+    items: { kind: 'service', label: 'Service categories', addLabel: '+ Add service',
+      fields: { subtitle: 'Price (e.g. from $30)', image: true, sub_items: 'Items in this category (one per line)' } },
+  },
+  le_rodin_spa: {
+    phone: true, hours: false, location: false, price: false, extra_info: false,
+    instagram: true,
+    items: { kind: 'service', label: 'Services', addLabel: '+ Add service',
+      fields: { subtitle: 'Price (e.g. from $60)', image: true } },
+  },
+  searenity_club: {
+    phone: true, hours: false, location: false, price: false, extra_info: false,
+    instagram: true,
+    items: { kind: 'service', label: 'Classes & memberships', addLabel: '+ Add item',
+      fields: { image: true } },
+  },
+  rove_pilates: {
+    phone: true, hours: false, location: false, price: false, extra_info: false,
+    instagram: true, whatsapp: true, app_store: true,
+    items: { kind: 'plan', label: 'Services & Rates', addLabel: '+ Add service',
+      fields: { subtitle: 'Price (e.g. $20)' } },
+  },
+  tennis: {
+    phone: false, hours: false, location: true, price: false, extra_info: false,
+    coach_section: true,
+    items: { kind: 'coach', label: 'Need a coach? · Coaches', addLabel: '+ Add coach',
+      fields: { subtitle: 'Background / certification', description: 'Availability (e.g. Mon · Wed · Fri)', phone: true, image: true } },
+  },
+  water_sports: {
+    phone: true, hours: false, location: false, price: false, extra_info: false,
+    items: { kind: 'sport', label: 'Sports & rates', addLabel: '+ Add sport',
+      fields: { subtitle: 'Price (e.g. $50 / 15 min)', image: true } },
+  },
+  kids_club: {
+    phone: true, hours: true, location: true, price: false, extra_info: false,
+  },
+  nursery: {
+    phone: true, hours: true, location: true, price: false, extra_info: true,
+  },
+  kaslik_gun_club: {
+    phone: true, hours: true, location: true, price: false, extra_info: true,
+  },
+  pools: {
+    phone: false, hours: true, location: false, price: false, extra_info: true,
+    indoor_pool: true,
+    items: { kind: 'pool', label: 'Outdoor pools', addLabel: '+ Add pool',
+      fields: { subtitle: 'Subtitle (e.g. No pool floats allowed)', image: true, description: 'Map pin id (e.g. olympic-pool)' } },
+  },
+};
+const FACILITY_FIELDS_DEFAULT = { phone: true, hours: true, location: true, price: true, extra_info: true };
+
+// Upload a single file (image) via the admin upload endpoint and return the
+// stored URL. Used by per-item single-image inputs (coach photos, sport
+// images, etc).
+async function uploadSingleFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const headers = {};
+  if (state.token) headers.Authorization = 'Bearer ' + state.token;
+  const res = await fetch(ADMIN + '/upload', { method: 'POST', headers, body: fd });
+  if (!res.ok) {
+    let msg = 'Upload failed';
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// One-image picker — used for per-item images (coach photos, sport tiles,
+// service tiles). Returns { block, getUrl, setUrl }.
+function createSingleImagePicker(initialUrl) {
+  let url = initialUrl || null;
+  const preview = h('div', { style: 'width:64px;height:64px;border-radius:8px;background:var(--bg);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;' });
+
+  function render() {
+    preview.innerHTML = '';
+    if (url) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+      preview.appendChild(img);
+    } else {
+      preview.appendChild(document.createTextNode('No image'));
+    }
+  }
+  render();
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.style.display = 'none';
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    try {
+      const data = await uploadSingleFile(file);
+      if (data.url) { url = data.url; render(); }
+    } catch (err) { toast(err.message || 'Upload failed', 'error'); }
+  };
+
+  const uploadBtn = h('button', { type: 'button', class: 'btn ghost sm', style: 'padding:5px 12px;font-size:12px;', onclick: () => fileInput.click() }, url ? 'Replace' : 'Upload');
+  const clearBtn = h('button', { type: 'button', class: 'btn ghost sm', style: 'padding:5px 12px;font-size:12px;color:#c0392b;',
+    onclick: () => { url = null; render(); } }, 'Remove');
+
+  const block = h('div', { style: 'display:flex;align-items:center;gap:10px;' }, preview, uploadBtn, clearBtn, fileInput);
+  return { block, getUrl: () => url };
+}
+
+// Sub-list manager (coaches / sports / services / plans). Each row is
+// editable; new rows can be added, existing ones removed. Persists via the
+// facility-items / service-items endpoints.
+function createItemListManager({ entity, ownerId, items, kind, label, addLabel, fields }) {
+  // entity = 'facility' or 'service'
+  const apiBase = entity === 'facility' ? {
+    create: api.createFacilityItem, update: api.updateFacilityItem, delete: api.deleteFacilityItem,
+    ownerKey: 'facility_id',
+  } : {
+    create: api.createServiceItem, update: api.updateServiceItem, delete: api.deleteServiceItem,
+    ownerKey: 'service_id',
+  };
+
+  const list = [...(items || [])];
+
+  const container = h('div', { style: 'margin-top:6px;' });
+
+  function render() {
+    container.innerHTML = '';
+    if (!list.length) {
+      container.appendChild(h('div', { class: 'muted-text', style: 'font-size:13px;padding:8px 0;' }, 'None yet.'));
+    } else {
+      const card = h('div', { class: 'card', style: 'padding:0;overflow:hidden;' });
+      list.forEach((it, i) => {
+        card.appendChild(h('div', {
+          style: `display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;${i > 0 ? 'border-top:1px solid var(--border);' : ''}`,
+          onclick: () => openItemEditor(it),
+        },
+          (() => {
+            if (!fields.image) return null;
+            const ph = h('div', { style: 'width:48px;height:48px;border-radius:8px;background:var(--bg);flex-shrink:0;' });
+            if (it.image_url) {
+              const img = document.createElement('img');
+              img.src = it.image_url;
+              img.style.cssText = 'width:48px;height:48px;object-fit:cover;border-radius:8px;display:block;flex-shrink:0;';
+              return img;
+            }
+            return ph;
+          })(),
+          (() => {
+            // For service_items the secondary field is `extra` instead of `description`
+            const secondary = entity === 'service' ? it.extra : it.description;
+            return h('div', { style: 'flex:1;min-width:0;' },
+              h('div', { style: 'font-weight:600;font-size:14px;' }, it.name),
+              it.subtitle ? h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' }, it.subtitle) : null,
+              secondary ? h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' }, secondary) : null,
+              it.phone ? h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' }, '📞 ' + it.phone) : null,
+              it.sub_items ? h('div', { class: 'muted-text', style: 'font-size:11px;margin-top:2px;' },
+                (() => { try { return JSON.parse(it.sub_items).join(' · '); } catch { return ''; } })(),
+              ) : null,
+            );
+          })(),
+          h('button', {
+            type: 'button', class: 'icon-btn danger', style: 'font-size:12px;padding:4px 10px;',
+            onclick: async (e) => {
+              e.stopPropagation();
+              if (!confirm(`Remove "${it.name}"?`)) return;
+              try {
+                if (it.id) await apiBase.delete(it.id);
+                const idx = list.indexOf(it);
+                if (idx >= 0) list.splice(idx, 1);
+                render();
+                toast('Removed');
+              } catch (err) { toast(err.message, 'error'); }
+            },
+          }, 'Delete'),
+        ));
+      });
+      container.appendChild(card);
+    }
+    container.appendChild(h('div', { style: 'margin-top:8px;' },
+      h('button', { type: 'button', class: 'btn ghost sm',
+        onclick: () => openItemEditor(null) }, addLabel),
+    ));
+  }
+
+  function openItemEditor(existing) {
+    const isExisting = !!existing;
+    const imgPicker = fields.image ? createSingleImagePicker(existing?.image_url || null) : null;
+
+    const form = h('form', { onsubmit: async (e) => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target).entries());
+      let payload;
+      if (entity === 'service') {
+        // service_items columns: name, subtitle, image_url, extra
+        payload = {
+          kind,
+          name: fd.name || '',
+          subtitle: fields.subtitle ? (fd.subtitle || null) : null,
+          image_url: imgPicker ? imgPicker.getUrl() : null,
+          extra: fields.description ? (fd.description || null) : null,
+        };
+      } else {
+        payload = {
+          kind,
+          name: fd.name || '',
+          subtitle: fields.subtitle ? (fd.subtitle || null) : null,
+          description: fields.description ? (fd.description || null) : null,
+          phone: fields.phone ? (fd.phone || null) : null,
+          image_url: imgPicker ? imgPicker.getUrl() : null,
+          sub_items: fields.sub_items
+            ? (() => {
+                const lines = (fd.sub_items || '').split('\n').map(s => s.trim()).filter(Boolean);
+                return lines.length ? JSON.stringify(lines) : null;
+              })()
+            : null,
+        };
+      }
+      if (!payload.name) { toast('Name is required', 'error'); return; }
+      try {
+        if (isExisting) {
+          await apiBase.update(existing.id, payload);
+          Object.assign(existing, payload);
+        } else {
+          const r = await apiBase.create({ [apiBase.ownerKey]: ownerId, ...payload });
+          list.push({ id: r.id, ...payload });
+        }
+        toast('Saved');
+        render();
+        m.close();
+      } catch (err) { toast(err.message, 'error'); }
+    } },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Name *'),
+        h('input', { name: 'name', value: existing?.name || '', required: true }),
+      ),
+      fields.subtitle ? h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, typeof fields.subtitle === 'string' ? fields.subtitle : 'Subtitle'),
+        h('input', { name: 'subtitle', value: existing?.subtitle || '' }),
+      ) : null,
+      fields.description ? h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, typeof fields.description === 'string' ? fields.description : 'Description'),
+        h('input', { name: 'description', value: (entity === 'service' ? existing?.extra : existing?.description) || '' }),
+      ) : null,
+      fields.phone ? h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Phone'),
+        h('input', { name: 'phone', value: existing?.phone || '' }),
+      ) : null,
+      fields.sub_items ? h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, typeof fields.sub_items === 'string' ? fields.sub_items : 'Sub-items (one per line)'),
+        h('textarea', { name: 'sub_items', rows: 5 },
+          existing?.sub_items
+            ? (() => { try { return JSON.parse(existing.sub_items).join('\n'); } catch { return ''; } })()
+            : '',
+        ),
+      ) : null,
+      imgPicker ? h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Image'),
+        imgPicker.block,
+      ) : null,
+      h('div', { class: 'modal-actions' },
+        h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+        h('button', { type: 'submit', class: 'btn primary' }, isExisting ? 'Save' : 'Add'),
+      ),
+    );
+    const m = openModal(h('div', {}, h('h3', {}, (isExisting ? 'Edit' : 'Add') + ' · ' + label), form));
+  }
+
+  render();
+
+  return {
+    block: h('div', { style: 'margin-top:18px;' },
+      h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.8px;color:var(--accent);text-transform:uppercase;margin-bottom:6px;' }, label),
+      container,
+    ),
+  };
+}
+
+async function openFacilityModal(f) {
   const isEdit = !!f;
 
   // Parse existing image_urls (and old single image_url as fallback)
@@ -1844,85 +2133,253 @@ function openFacilityModal(f) {
 
   const imageManager = createImageManager(initialImages);
 
+  // If this is Kids Club, also load the Nursery facility so we can edit it
+  // inline (mirrors the Pools / Indoor Pool flow — related sub-page edited
+  // from the parent facility).
+  let nursery = null;
+  let nurseryImageManager = null;
+  if (f?.key === 'kids_club') {
+    try {
+      const allFacilities = await api.facilities();
+      nursery = allFacilities.find(x => x.key === 'nursery') || null;
+    } catch (_) { /* keep nursery null; admin sees the section as empty */ }
+    let nImgs = [];
+    if (nursery?.image_urls) {
+      try { nImgs = JSON.parse(nursery.image_urls); } catch (_) {}
+    }
+    nurseryImageManager = createImageManager(nImgs, 'Nursery images');
+  }
+
+  // Field config — show only the fields the client actually sees for this facility
+  const cfg = (f?.key && FACILITY_FIELDS[f.key]) || FACILITY_FIELDS_DEFAULT;
+
+  const pair = (a, b) => {
+    if (cfg[a.key] && cfg[b.key]) return h('div', { class: 'field-row' }, a.el, b.el);
+    if (cfg[a.key]) return a.el;
+    if (cfg[b.key]) return b.el;
+    return null;
+  };
+
+  const phoneField = { key: 'phone', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Phone'),
+    h('input', { name: 'phone', value: f?.phone || '', placeholder: 'e.g. +961 9 640 666' }),
+  )};
+  const hoursField = { key: 'hours', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Hours'),
+    h('input', { name: 'hours', value: f?.hours || '', placeholder: 'e.g. Daily 8:00 AM – 7:00 PM' }),
+  )};
+  const locationField = { key: 'location', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Location'),
+    h('input', { name: 'location', value: f?.location || '', placeholder: 'e.g. Sports area, east side' }),
+  )};
+  const priceField = { key: 'price', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Price'),
+    h('input', { name: 'price', value: f?.price || '', placeholder: 'e.g. Free for guests · $15 per hour' }),
+  )};
+  const extraField = cfg.extra_info ? h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Extra info (shown as "Information")'),
+    h('input', { name: 'extra_info', value: f?.extra_info || '', placeholder: 'e.g. Briefing included · Children must be supervised.' }),
+  ) : null;
+
+  const urlPair = [];
+  if (cfg.instagram) urlPair.push(h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Instagram URL'),
+    h('input', { name: 'instagram_url', value: f?.instagram_url || '', placeholder: 'https://www.instagram.com/...' }),
+  ));
+  if (cfg.whatsapp) urlPair.push(h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'WhatsApp URL'),
+    h('input', { name: 'whatsapp_url', value: f?.whatsapp_url || '', placeholder: 'https://api.whatsapp.com/send/?phone=...' }),
+  ));
+  if (cfg.app_store) urlPair.push(h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'App Store URL'),
+    h('input', { name: 'app_store_url', value: f?.app_store_url || '', placeholder: 'https://apps.apple.com/...' }),
+  ));
+  const urlSection = urlPair.length ? h('div', { class: 'field-row', style: 'flex-wrap:wrap;' }, ...urlPair) : null;
+
+  // "Need a coach?" section editor (Tennis only) — covers the hint line
+  // (with the session price) and the info-note below it.
+  const coachSection = cfg.coach_section ? h('div', { style: 'margin-top:18px;border-top:1px solid var(--border);padding-top:18px;' },
+    h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.8px;color:var(--accent);text-transform:uppercase;margin-bottom:10px;' }, '"Need a coach?" section'),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Section hint (includes the session price)'),
+      h('input', { name: 'coach_hint', value: f?.coach_hint || '', placeholder: 'e.g. Book a session with one of our coaches · $15 per session, court included' }),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Info note (shown above the coach cards)'),
+      h('textarea', { name: 'warning_message', rows: 2 }, f?.warning_message || ''),
+    ),
+  ) : null;
+
+  // Indoor pool section (only for the Pools facility)
+  let indoorPoolImagePicker = null;
+  let indoorPoolBlock = null;
+  if (cfg.indoor_pool) {
+    indoorPoolImagePicker = createSingleImagePicker(f?.indoor_pool_image_url || null);
+    indoorPoolBlock = h('div', { style: 'margin-top:18px;border-top:1px solid var(--border);padding-top:18px;' },
+      h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.8px;color:var(--accent);text-transform:uppercase;margin-bottom:10px;' }, 'Indoor pool'),
+      h('div', { class: 'field-row' },
+        h('div', { class: 'field' },
+          h('label', { class: 'field-label' }, 'Indoor pool title'),
+          h('input', { name: 'indoor_pool_name', value: f?.indoor_pool_name || '', placeholder: 'e.g. Indoor Pool' }),
+        ),
+        h('div', { class: 'field' },
+          h('label', { class: 'field-label' }, 'Subtitle'),
+          h('input', { name: 'indoor_pool_subtitle', value: f?.indoor_pool_subtitle || '', placeholder: 'e.g. At SEArenity Club · Swimming cap is mandatory' }),
+        ),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Indoor pool image'),
+        indoorPoolImagePicker.block,
+      ),
+    );
+  }
+
+  // Nursery sub-section (Kids Club only) — full inline editor for the
+  // Nursery facility, since it appears as the "For younger ones" card on
+  // the Kids Club page in the client app.
+  let nurseryBlock = null;
+  if (f?.key === 'kids_club' && nursery) {
+    nurseryBlock = h('div', { style: 'margin-top:18px;border-top:1px solid var(--border);padding-top:18px;' },
+      h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.8px;color:var(--accent);text-transform:uppercase;margin-bottom:10px;' }, 'Nursery (shown as "For younger ones")'),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Name'),
+        h('input', { name: 'nursery_name', value: nursery.name || '', placeholder: 'e.g. Nursery' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Description'),
+        h('textarea', { name: 'nursery_description', rows: 3 }, nursery.description || ''),
+      ),
+      h('div', { class: 'field-row' },
+        h('div', { class: 'field' },
+          h('label', { class: 'field-label' }, 'Phone'),
+          h('input', { name: 'nursery_phone', value: nursery.phone || '' }),
+        ),
+        h('div', { class: 'field' },
+          h('label', { class: 'field-label' }, 'Hours'),
+          h('input', { name: 'nursery_hours', value: nursery.hours || '' }),
+        ),
+      ),
+      h('div', { class: 'field-row' },
+        h('div', { class: 'field' },
+          h('label', { class: 'field-label' }, 'Location'),
+          h('input', { name: 'nursery_location', value: nursery.location || '' }),
+        ),
+        h('div', { class: 'field' },
+          h('label', { class: 'field-label' }, 'Age range'),
+          h('input', { name: 'nursery_extra_info', value: nursery.extra_info || '', placeholder: 'e.g. Babies & children under 6' }),
+        ),
+      ),
+      nurseryImageManager.block,
+    );
+  }
+
+  // Items section (coaches, sports, services, plans)
+  const itemsManager = (cfg.items && isEdit)
+    ? createItemListManager({
+        entity: 'facility',
+        ownerId: f.id,
+        items: f.items || [],
+        kind: cfg.items.kind,
+        label: cfg.items.label,
+        addLabel: cfg.items.addLabel,
+        fields: cfg.items.fields,
+      })
+    : null;
+
+  // Hidden inputs ensure removed fields get cleared on save
+  const hidden = ['phone', 'hours', 'location', 'price', 'extra_info']
+    .filter(k => !cfg[k])
+    .map(k => h('input', { type: 'hidden', name: k, value: '' }));
+  if (!cfg.instagram) hidden.push(h('input', { type: 'hidden', name: 'instagram_url', value: '' }));
+  if (!cfg.whatsapp) hidden.push(h('input', { type: 'hidden', name: 'whatsapp_url', value: '' }));
+  if (!cfg.app_store) hidden.push(h('input', { type: 'hidden', name: 'app_store_url', value: '' }));
+  if (!cfg.coach_section) {
+    hidden.push(h('input', { type: 'hidden', name: 'warning_message', value: '' }));
+    hidden.push(h('input', { type: 'hidden', name: 'coach_hint', value: '' }));
+  }
+  if (!cfg.indoor_pool) {
+    hidden.push(h('input', { type: 'hidden', name: 'indoor_pool_name', value: '' }));
+    hidden.push(h('input', { type: 'hidden', name: 'indoor_pool_subtitle', value: '' }));
+  }
+
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
-    // Preserve internal fields the admin doesn't see (key, bookable)
+    for (const k of ['phone', 'hours', 'location', 'price', 'extra_info', 'description', 'instagram_url', 'whatsapp_url', 'app_store_url', 'warning_message', 'coach_hint', 'indoor_pool_name', 'indoor_pool_subtitle']) {
+      if (fd[k] === '') fd[k] = null;
+    }
+    // Indoor pool image — comes from the single-image picker, not a form field
+    fd.indoor_pool_image_url = indoorPoolImagePicker ? indoorPoolImagePicker.getUrl() : null;
     if (isEdit) {
       if (f.key) fd.key = f.key;
       fd.bookable = f.bookable ? 1 : 0;
+      fd.category = f.category || null;
     } else {
-      // New facility: synthesize a stable key from the name
       fd.key = (fd.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `facility_${Date.now()}`;
       fd.bookable = 0;
+      fd.category = null;
     }
     const urls = imageManager.getUrls();
     fd.image_urls = urls.length ? JSON.stringify(urls) : null;
+
+    // Strip the nursery_* form fields out of the main payload — they get
+    // saved against the Nursery facility separately.
+    const nurseryPayload = nursery ? {
+      name: fd.nursery_name || null,
+      description: fd.nursery_description || null,
+      phone: fd.nursery_phone || null,
+      hours: fd.nursery_hours || null,
+      location: fd.nursery_location || null,
+      extra_info: fd.nursery_extra_info || null,
+    } : null;
+    for (const k of Object.keys(fd)) {
+      if (k.startsWith('nursery_')) delete fd[k];
+    }
+
     try {
       if (isEdit) await api.updateFacility(f.id, fd);
       else await api.createFacility(fd);
+      if (nursery && nurseryPayload) {
+        const nUrls = nurseryImageManager ? nurseryImageManager.getUrls() : [];
+        await api.updateFacility(nursery.id, {
+          ...nurseryPayload,
+          image_urls: nUrls.length ? JSON.stringify(nUrls) : null,
+        });
+      }
       toast('Saved'); m.close(); setTab('content');
     } catch (err) { toast(err.message, 'error'); }
   } },
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Name *'),
-        h('input', { name: 'name', value: f?.name || '', required: true, placeholder: 'e.g. Outdoor Swimming Pool' }),
-      ),
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Category'),
-        h('input', { name: 'category', value: f?.category || '', placeholder: 'e.g. pool · wellness · sports', list: 'facility-categories' }),
-      ),
-    ),
-    h('datalist', { id: 'facility-categories' },
-      h('option', { value: 'pool' }),
-      h('option', { value: 'wellness' }),
-      h('option', { value: 'sports' }),
-      h('option', { value: 'family' }),
-      h('option', { value: 'outdoor' }),
-      h('option', { value: 'services' }),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Hours'),
-        h('input', { name: 'hours', value: f?.hours || '', placeholder: 'e.g. Daily 8:00 AM – 7:00 PM' }),
-      ),
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Location'),
-        h('input', { name: 'location', value: f?.location || '', placeholder: 'e.g. Main resort deck, sea level' }),
-      ),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Phone'),
-        h('input', { name: 'phone', value: f?.phone || '', placeholder: 'e.g. +961 9 640 666' }),
-      ),
-      h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Price'),
-        h('input', { name: 'price', value: f?.price || '', placeholder: 'e.g. Free for guests · $15 per hour' }),
-      ),
-    ),
     h('div', { class: 'field' },
-      h('label', { class: 'field-label' }, 'Extra info (shown as "Information")'),
-      h('input', { name: 'extra_info', value: f?.extra_info || '', placeholder: 'e.g. Towels provided. Reservations recommended.' }),
+      h('label', { class: 'field-label' }, 'Name *'),
+      h('input', { name: 'name', value: f?.name || '', required: true, placeholder: 'e.g. Salon Antoinette' }),
     ),
     h('div', { class: 'field' },
       h('label', { class: 'field-label' }, 'Description'),
       h('textarea', { name: 'description', rows: 3 }, f?.description || ''),
     ),
+    pair(phoneField, hoursField),
+    pair(locationField, priceField),
+    extraField,
+    urlSection,
     imageManager.block,
+    coachSection,
+    itemsManager ? itemsManager.block : null,
+    indoorPoolBlock,
+    nurseryBlock,
+    ...hidden,
     h('div', { class: 'modal-actions' },
       h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
       h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save' : 'Create'),
     ),
   );
 
-  // Safety net: cancel any image-reorder drop that lands outside the grid,
-  // so the URL can't be inserted into a focused textarea/input.
+  const allowedGrids = [imageManager.grid];
+  if (nurseryImageManager) allowedGrids.push(nurseryImageManager.grid);
+  const inAllowedGrid = (target) => allowedGrids.some(g => g.contains(target));
   form.addEventListener('dragover', (e) => {
     const types = e.dataTransfer && e.dataTransfer.types;
     if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
-    if (!imageManager.grid.contains(e.target)) {
+    if (!inAllowedGrid(e.target)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'none';
     }
@@ -1930,7 +2387,7 @@ function openFacilityModal(f) {
   form.addEventListener('drop', (e) => {
     const types = e.dataTransfer && e.dataTransfer.types;
     if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
-    if (!imageManager.grid.contains(e.target)) {
+    if (!inAllowedGrid(e.target)) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -1976,7 +2433,40 @@ async function renderMarina(body) {
         h('div', { style: 'flex:1;min-width:0;' },
           h('div', { style: 'font-size:18px;font-weight:700;color:var(--text);' }, marina.name),
           marina.description ? h('div', { class: 'muted-text', style: 'margin-top:8px;font-size:14px;line-height:1.5;' }, marina.description) : null,
-          h('div', { style: 'margin-top:16px;color:var(--accent);font-weight:600;font-size:13px;' }, 'Click to edit La Marina page content'),
+          h('div', { style: 'margin-top:16px;color:var(--accent);font-weight:600;font-size:13px;' }, 'Click to edit La Marina page (title, description, phone, images, activities)'),
+        ),
+      ),
+    );
+  }
+
+  // ---- Maritime Academy edit card ----
+  const academy = services.find(s => s.key === 'maritime_academy');
+  if (academy) {
+    let academyImage = null;
+    if (academy.image_urls) {
+      try { const u = JSON.parse(academy.image_urls); academyImage = u[0] || null; } catch (_) {}
+    }
+    const aImgEl = academyImage
+      ? (() => {
+          const i = document.createElement('img');
+          i.src = academyImage;
+          i.style.cssText = 'width:140px;height:140px;object-fit:cover;border-radius:12px;flex-shrink:0;';
+          return i;
+        })()
+      : null;
+    body.appendChild(
+      h('div', {
+        class: 'card',
+        style: 'padding:20px;cursor:pointer;margin-bottom:20px;display:flex;gap:20px;align-items:center;',
+        onclick: () => openServiceModal(academy),
+      },
+        aImgEl,
+        h('div', { style: 'flex:1;min-width:0;' },
+          h('div', { style: 'font-size:11px;letter-spacing:1px;color:var(--accent);font-weight:700;text-transform:uppercase;margin-bottom:4px;' }, 'Maritime Academy'),
+          h('div', { style: 'font-size:18px;font-weight:700;color:var(--text);' }, academy.name),
+          academy.subtitle ? h('div', { class: 'muted-text', style: 'margin-top:4px;font-size:14px;' }, academy.subtitle) : null,
+          academy.description ? h('div', { class: 'muted-text', style: 'margin-top:8px;font-size:14px;line-height:1.5;' }, academy.description.slice(0, 140) + (academy.description.length > 140 ? '…' : '')) : null,
+          h('div', { style: 'margin-top:16px;color:var(--accent);font-weight:600;font-size:13px;' }, 'Click to edit Maritime Academy page (call, email, website, Instagram, images)'),
         ),
       ),
     );
@@ -2137,7 +2627,15 @@ const SERVICE_FIELDS = {
   get_to_city:    { subtitle: false, description: true, phone: true, email: false, hours: false, location: false, extra_info: true  },
   celebrate:      { subtitle: true,  description: true, phone: true, email: false, hours: false, location: false, extra_info: false },
   pools:          { subtitle: false, description: true, phone: false, email: false, hours: true,  location: false, extra_info: true  },
-  marina:         { subtitle: false, description: true, phone: true, email: false, hours: false, location: false, extra_info: false },
+  marina: {
+    subtitle: false, description: true, phone: true, email: false, hours: false, location: false, extra_info: false,
+    items: { kind: 'activity', label: 'Explore the Marina · Activities', addLabel: '+ Add activity',
+      fields: { subtitle: 'Short description (e.g. Private and visitor slips)' } },
+  },
+  maritime_academy: {
+    subtitle: true, description: true, phone: true, email: true, hours: false, location: false, extra_info: false,
+    website: true, instagram: true,
+  },
 };
 const FIELD_LABELS = {
   subtitle: 'Subtitle', description: 'Description', phone: 'Phone',
@@ -2146,7 +2644,8 @@ const FIELD_LABELS = {
 
 async function renderServices(body) {
   $('#page-actions').innerHTML = '';
-  const list = (await api.services()).filter(s => s.key !== 'marina');
+  // Marina + Maritime Academy live in the La Marina tab — hide them here.
+  const list = (await api.services()).filter(s => s.key !== 'marina' && s.key !== 'maritime_academy');
   if (!list.length) { body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No services configured.'))); return; }
 
   const t = h('table', { class: 'table' });
@@ -2230,16 +2729,43 @@ function openServiceModal(s) {
     h('input', { name: 'extra_info', value: s?.extra_info || '', placeholder: 'Anything else clients should know' }),
   ) : null;
 
+  // Optional URL fields (Maritime Academy)
+  const urlPair = [];
+  if (cfg.website) urlPair.push(h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Website'),
+    h('input', { name: 'website', value: s?.website || '', placeholder: 'https://...' }),
+  ));
+  if (cfg.instagram) urlPair.push(h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Instagram URL'),
+    h('input', { name: 'instagram_url', value: s?.instagram_url || '', placeholder: 'https://www.instagram.com/...' }),
+  ));
+  const urlSection = urlPair.length ? h('div', { class: 'field-row', style: 'flex-wrap:wrap;' }, ...urlPair) : null;
+
+  // Items section for services that have a sub-list (e.g. Marina activities)
+  const itemsManager = (cfg.items && s?.id)
+    ? createItemListManager({
+        entity: 'service',
+        ownerId: s.id,
+        items: s.items || [],
+        kind: cfg.items.kind,
+        label: cfg.items.label,
+        addLabel: cfg.items.addLabel,
+        fields: cfg.items.fields,
+      })
+    : null;
+
   // Hidden inputs ensure the server receives `null` for fields we removed
   // from the UI (instead of preserving stale values).
   const hidden = ['subtitle', 'phone', 'email', 'hours', 'location', 'extra_info']
     .filter(k => !cfg[k])
     .map(k => h('input', { type: 'hidden', name: k, value: '' }));
+  if (!cfg.website) hidden.push(h('input', { type: 'hidden', name: 'website', value: '' }));
+  if (!cfg.instagram) hidden.push(h('input', { type: 'hidden', name: 'instagram_url', value: '' }));
 
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
-    for (const k of ['subtitle', 'description', 'phone', 'email', 'hours', 'location', 'extra_info']) {
+    for (const k of ['subtitle', 'description', 'phone', 'email', 'hours', 'location', 'extra_info', 'website', 'instagram_url']) {
       if (fd[k] === '') fd[k] = null;
     }
     const urls = imageManager.getUrls();
@@ -2255,7 +2781,9 @@ function openServiceModal(s) {
     pair(phoneField, emailField),
     pair(hoursField, locationField),
     extraField,
+    urlSection,
     imageManager.block,
+    itemsManager ? itemsManager.block : null,
     ...hidden,
     h('div', { class: 'modal-actions' },
       h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),

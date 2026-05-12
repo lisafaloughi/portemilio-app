@@ -259,6 +259,65 @@ if (!hasColumn('bookings', 'reminder_sent')) {
 if (!hasColumn('restaurants', 'image_urls')) {
   db.exec(`ALTER TABLE restaurants ADD COLUMN image_urls TEXT`);
 }
+if (!hasColumn('facilities', 'instagram_url')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN instagram_url TEXT`);
+}
+if (!hasColumn('facilities', 'whatsapp_url')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN whatsapp_url TEXT`);
+}
+if (!hasColumn('facilities', 'app_store_url')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN app_store_url TEXT`);
+}
+if (!hasColumn('facilities', 'warning_message')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN warning_message TEXT`);
+}
+if (!hasColumn('facilities', 'indoor_pool_name')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN indoor_pool_name TEXT`);
+}
+if (!hasColumn('facilities', 'indoor_pool_subtitle')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN indoor_pool_subtitle TEXT`);
+}
+if (!hasColumn('facilities', 'indoor_pool_image_url')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN indoor_pool_image_url TEXT`);
+}
+if (!hasColumn('facilities', 'coach_hint')) {
+  db.exec(`ALTER TABLE facilities ADD COLUMN coach_hint TEXT`);
+}
+if (!hasColumn('services', 'website')) {
+  db.exec(`ALTER TABLE services ADD COLUMN website TEXT`);
+}
+if (!hasColumn('services', 'instagram_url')) {
+  db.exec(`ALTER TABLE services ADD COLUMN instagram_url TEXT`);
+}
+
+// Child item tables for facility and service sub-lists (coaches, sports,
+// service plans, pools, etc). Each row's `kind` distinguishes the use case.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS facility_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    facility_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    subtitle TEXT,
+    description TEXT,
+    phone TEXT,
+    image_url TEXT,
+    sub_items TEXT,
+    sort_order INTEGER DEFAULT 0,
+    FOREIGN KEY(facility_id) REFERENCES facilities(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS service_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    subtitle TEXT,
+    image_url TEXT,
+    extra TEXT,
+    sort_order INTEGER DEFAULT 0,
+    FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
+  );
+`);
 if (!hasColumn('restaurants', 'menu_pdf_url')) {
   db.exec(`ALTER TABLE restaurants ADD COLUMN menu_pdf_url TEXT`);
 }
@@ -297,6 +356,327 @@ const FACILITY_SEED_IMAGES = {
 const setFacilityImgs = db.prepare(`UPDATE facilities SET image_urls = ? WHERE key = ? AND (image_urls IS NULL OR image_urls = '')`);
 for (const [key, urls] of Object.entries(FACILITY_SEED_IMAGES)) {
   setFacilityImgs.run(JSON.stringify(urls), key);
+}
+
+// --- Facilities realignment (one-time migration) ---
+// Replace the placeholder facility set with the actual facility pages the
+// client sees in the app. Tracked via a settings flag so it runs once.
+const FACILITY_REALIGN_KEY = 'facilities_realigned_v1';
+const realignDone = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(FACILITY_REALIGN_KEY);
+if (!realignDone) {
+  // Remove the records that don't correspond to a dedicated facility screen
+  // in the mobile app. Their content lives in services pages instead.
+  db.prepare(`DELETE FROM facilities WHERE key IN ('concierge', 'gym', 'hair_salon', 'indoor_pool', 'outdoor_pool', 'spa', 'shooting', 'beach')`).run();
+
+  // Insert / refresh the 9 client-visible facilities. The OR IGNORE means
+  // if 'tennis' or 'kids_club' already exist from prior seeds, they're kept
+  // as-is (admin edits preserved); only their image_urls + missing fields
+  // get topped up below.
+  const NEW_FACILITIES = [
+    { key: 'salon_antoinette', name: 'Salon Antoinette',  category: 'wellness',
+      description: 'Hair, nails, and makeup — book in for a special occasion or a relaxed afternoon.',
+      phone: '+9619123469', hours: null, location: null, price: null, extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/wellness-area.jpg'] },
+    { key: 'le_rodin_spa', name: 'Le Rodin Spa', category: 'wellness',
+      description: 'Massages and body-sculpting treatments in a quiet spa setting. Take an hour for yourself.',
+      phone: '+9619123470', hours: null, location: null, price: null, extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/wellness-area.jpg'] },
+    { key: 'searenity_club', name: 'SEArenity Club', category: 'wellness',
+      description: 'Gym, classes, scuba, swimming, and personal training. Train with the team however you move.',
+      phone: '+9619635356', hours: null, location: null, price: null, extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/wellness-area.jpg'] },
+    { key: 'rove_pilates', name: 'Rove Pilates', category: 'wellness',
+      description: 'Group reformer classes — Abs & Core, Legs & Glutes, Power, and Foundations — plus private 1-on-1 and duo sessions. Book everything through the Rove app.',
+      phone: '+96181152433', hours: null, location: null, price: null, extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/wellness-area.jpg'] },
+    { key: 'tennis', name: 'Tennis Courts', category: 'sports',
+      description: 'Two outdoor courts available daily. Sessions and coaching available — book through the app.',
+      phone: null, hours: 'Daily 7:00 AM – 9:00 PM', location: 'Sports area, east side',
+      price: '$15 per hour', extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/tennis.jpg'] },
+    { key: 'water_sports', name: 'Water Sports', category: 'sports',
+      description: 'Kayak, paddleboard, jet-ski, scuba diving and more — right from the Marina.',
+      phone: null, hours: null, location: null, price: null, extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/water-sports.jpg'] },
+    { key: 'kids_club', name: 'Kids Club', category: 'family',
+      description: 'Supervised activities for children ages 4–12. Arts, games, and pool time.',
+      phone: null, hours: null, location: null, price: null, extra_info: null,
+      image_urls: ['/uploads/seeds/facilities/kidsclub1.jpg', '/uploads/seeds/facilities/kids-activities.jpg'] },
+    { key: 'nursery', name: 'Nursery', category: 'family',
+      description: 'A supervised space for kids under 6. Drop them off in good hands and enjoy the resort with peace of mind.',
+      phone: '+9619123472', hours: '9:00 AM – 6:00 PM', location: 'Activities zone · Ground level',
+      price: null, extra_info: 'Babies & children under 6',
+      image_urls: ['/uploads/seeds/facilities/kids-activities.jpg'] },
+    { key: 'kaslik_gun_club', name: 'Kaslik Gun Club', category: 'sports',
+      description: 'Indoor shooting range with guided sessions for beginners and experienced shooters alike. Safety briefing always included.',
+      phone: '+9619123474', hours: '9:00 AM – 6:00 PM', location: 'Activities zone · Outdoor range',
+      price: null, extra_info: 'Briefing and supervision included with every session',
+      image_urls: ['/uploads/seeds/facilities/todays-act-1.jpg'] },
+  ];
+  const insertNewFacility = db.prepare(`
+    INSERT OR IGNORE INTO facilities (key, name, category, description, hours, location, phone, image_url, bookable, price, extra_info, image_urls)
+    VALUES (@key, @name, @category, @description, @hours, @location, @phone, NULL, @bookable, @price, @extra_info, @image_urls)
+  `);
+  const updateNewFacility = db.prepare(`
+    UPDATE facilities SET
+      name=@name,
+      category=@category,
+      description=COALESCE(description, @description),
+      hours=COALESCE(hours, @hours),
+      location=COALESCE(location, @location),
+      phone=COALESCE(phone, @phone),
+      price=COALESCE(price, @price),
+      extra_info=COALESCE(extra_info, @extra_info),
+      image_urls=COALESCE(NULLIF(image_urls, ''), @image_urls)
+    WHERE key=@key
+  `);
+  for (const f of NEW_FACILITIES) {
+    const bookable = ['tennis', 'rove_pilates', 'le_rodin_spa', 'salon_antoinette', 'kaslik_gun_club'].includes(f.key) ? 1 : 0;
+    const payload = { ...f, bookable, image_urls: JSON.stringify(f.image_urls) };
+    insertNewFacility.run(payload);
+    // For records that already existed (e.g. 'tennis', 'kids_club'), refresh
+    // name/category and fill in any missing fields without overwriting edits.
+    updateNewFacility.run(payload);
+  }
+
+  db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')`).run(FACILITY_REALIGN_KEY);
+}
+
+// --- Seed facility/service sub-items (coaches, sports, services, pools) ---
+const ITEMS_SEED_KEY = 'facility_items_seed_v1';
+const itemsSeedDone = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(ITEMS_SEED_KEY);
+if (!itemsSeedDone) {
+  const findFacility = db.prepare('SELECT id FROM facilities WHERE key = ?');
+  const findService = db.prepare('SELECT id FROM services WHERE key = ?');
+  const insertFacItem = db.prepare(`
+    INSERT INTO facility_items (facility_id, kind, name, subtitle, description, phone, image_url, sub_items, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertSvcItem = db.prepare(`
+    INSERT INTO service_items (service_id, kind, name, subtitle, image_url, extra, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const seedFacility = (key, items) => {
+    const f = findFacility.get(key);
+    if (!f) return;
+    items.forEach((it, i) => insertFacItem.run(
+      f.id, it.kind, it.name, it.subtitle || null, it.description || null,
+      it.phone || null, it.image_url || null,
+      it.sub_items ? JSON.stringify(it.sub_items) : null,
+      (i + 1) * 10,
+    ));
+  };
+  const seedService = (key, items) => {
+    const s = findService.get(key);
+    if (!s) return;
+    items.forEach((it, i) => insertSvcItem.run(
+      s.id, it.kind, it.name, it.subtitle || null,
+      it.image_url || null, it.extra || null, (i + 1) * 10,
+    ));
+  };
+
+  // --- Tennis coaches ---
+  seedFacility('tennis', [
+    { kind: 'coach', name: 'Oksana Belonenko',
+      subtitle: 'Bill Adams International Tennis Academy · Florida, USA',
+      description: 'Mon · Wed · Fri · Sat',
+      phone: '+96171488488' },
+    { kind: 'coach', name: 'Fabrice Hilaire',
+      subtitle: 'ITF Level II certified · Istanbul, Dubai, Tunis, Abidjan',
+      description: 'Tue · Thu · Sat · Sun',
+      phone: '+2250707177702' },
+  ]);
+
+  // --- Water Sports rates ---
+  seedFacility('water_sports', [
+    { kind: 'sport', name: 'Jet ski',       subtitle: '$50 / 15 min',  image_url: '/uploads/seeds/facilities/water-sports.jpg' },
+    { kind: 'sport', name: 'Kayak',         subtitle: '$20 / hr' },
+    { kind: 'sport', name: 'Rowboat',       subtitle: '$15 / hr' },
+    { kind: 'sport', name: 'Pedalo',        subtitle: '$20 / hr' },
+    { kind: 'sport', name: 'Water skiing',  subtitle: '$40 / 15 min' },
+    { kind: 'sport', name: 'Scuba diving',  subtitle: '$80 / dive' },
+  ]);
+
+  // --- Salon Antoinette services with nested items ---
+  seedFacility('salon_antoinette', [
+    { kind: 'service', name: 'Hair Atelier',       subtitle: 'from $30',
+      sub_items: ['Blowout & Styling', 'Haircut & Trim', 'Coloring', 'Hair Treatments', 'Event & Bridal Styling'] },
+    { kind: 'service', name: 'Nail Care',          subtitle: 'from $20',
+      sub_items: ['Classic Manicure', 'Gel / Shellac Manicure', 'Pedicure (Classic & Spa)', 'Nail Extensions & Refills', 'Nail Art & Design'] },
+    { kind: 'service', name: 'Makeup Artistry',    subtitle: 'from $40',
+      sub_items: ['Natural / Day Makeup', 'Evening / Glam Makeup', 'Bridal Makeup', 'Event & Photoshoot Makeup'] },
+    { kind: 'service', name: 'Beauty Treatments',  subtitle: 'from $35',
+      sub_items: ['Facials (Hydrating, Deep Clean, Anti-Aging)', 'Eyebrow Shaping & Tinting', 'Lash Lifting & Extensions', 'Skin Treatments'] },
+  ]);
+
+  // --- Le Rodin Spa services ---
+  seedFacility('le_rodin_spa', [
+    { kind: 'service', name: 'Massage',        subtitle: 'from $60' },
+    { kind: 'service', name: 'Body sculpting', subtitle: 'from $80' },
+  ]);
+
+  // --- SEArenity Club services (no prices) ---
+  seedFacility('searenity_club', [
+    { kind: 'service', name: 'Personal Training' },
+    { kind: 'service', name: 'Gym Membership' },
+    { kind: 'service', name: 'Pool Membership' },
+    { kind: 'service', name: 'Scuba Diving' },
+    { kind: 'service', name: 'Kangoo Jumps Class' },
+    { kind: 'service', name: 'Kung-Fu Class' },
+    { kind: 'service', name: 'Self Defence Class' },
+    { kind: 'service', name: 'Zumba Class' },
+    { kind: 'service', name: 'Oriental Class' },
+    { kind: 'service', name: 'Swimming' },
+    { kind: 'service', name: 'Dietitian Consultation' },
+  ]);
+
+  // --- Rove Pilates plans ---
+  seedFacility('rove_pilates', [
+    { kind: 'plan', name: '1 Session',             subtitle: '$20' },
+    { kind: 'plan', name: '4 Sessions',            subtitle: '$75' },
+    { kind: 'plan', name: '8 Sessions',            subtitle: '$140' },
+    { kind: 'plan', name: '12 Sessions',           subtitle: '$195' },
+    { kind: 'plan', name: 'Private · Solo Session', subtitle: '$50' },
+    { kind: 'plan', name: 'Private · Duo Session',  subtitle: '$80' },
+  ]);
+
+  // Pools moved to Facilities — its outdoor pool list lives in facility_items
+  // and is seeded after the move below.
+
+  // --- Seed the wellness facility URLs ---
+  const setFacilityUrl = db.prepare(`UPDATE facilities SET instagram_url = COALESCE(instagram_url, ?), whatsapp_url = COALESCE(whatsapp_url, ?), app_store_url = COALESCE(app_store_url, ?), warning_message = COALESCE(warning_message, ?) WHERE key = ?`);
+  setFacilityUrl.run('https://www.instagram.com/salon_antoinette/', null, null, null, 'salon_antoinette');
+  setFacilityUrl.run('https://www.instagram.com/lerodin/', null, null, null, 'le_rodin_spa');
+  setFacilityUrl.run('https://www.instagram.com/searenityclub/', null, null, null, 'searenity_club');
+  setFacilityUrl.run(
+    'https://www.instagram.com/rovepilatesstudio/',
+    'https://api.whatsapp.com/send/?phone=96181152433&text&type=phone_number&app_absent=0',
+    'https://apps.apple.com/us/app/rove-pilates-studio/id6743739472',
+    null,
+    'rove_pilates',
+  );
+  setFacilityUrl.run(null, null, null,
+    'When you book with a coach, they handle the court reservation — no need to book the court separately.',
+    'tennis',
+  );
+
+  db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')`).run(ITEMS_SEED_KEY);
+}
+
+// Pools is managed in the Facilities tab — make sure no lingering service
+// record exists (idempotent: runs every startup, NOOP once cleaned).
+{
+  const poolsService = db.prepare(`SELECT * FROM services WHERE key = 'pools'`).get();
+  if (poolsService) {
+    const existingPoolsFacility = db.prepare(`SELECT id FROM facilities WHERE key = 'pools'`).get();
+    if (!existingPoolsFacility) {
+      // First time: copy the service into a facility with default indoor pool
+      const firstImage = (() => {
+        try { const u = JSON.parse(poolsService.image_urls || '[]'); return u[0] || null; } catch { return null; }
+      })();
+      const r = db.prepare(`
+        INSERT INTO facilities
+          (key, name, category, description, hours, location, phone, image_url, bookable, price, extra_info, image_urls,
+           indoor_pool_name, indoor_pool_subtitle, indoor_pool_image_url)
+        VALUES
+          ('pools', @name, 'pool', @description, @hours, @location, NULL, NULL, 0, NULL, @extra_info, @image_urls,
+           'Indoor Pool', 'At SEArenity Club · Swimming cap is mandatory', @first_image)
+      `).run({
+        name: poolsService.name || 'Pools',
+        description: poolsService.description || null,
+        hours: poolsService.hours || null,
+        location: poolsService.location || null,
+        extra_info: poolsService.extra_info || null,
+        image_urls: poolsService.image_urls || null,
+        first_image: firstImage,
+      });
+      const newFacilityId = r.lastInsertRowid;
+      const items = db.prepare(`SELECT * FROM service_items WHERE service_id = ?`).all(poolsService.id);
+      const insertFacItem = db.prepare(`
+        INSERT INTO facility_items (facility_id, kind, name, subtitle, description, image_url, sort_order)
+        VALUES (?, 'pool', ?, ?, ?, ?, ?)
+      `);
+      for (const it of items) {
+        insertFacItem.run(newFacilityId, it.name, it.subtitle || null, it.extra || null, it.image_url || null, it.sort_order || 0);
+      }
+    }
+    // Always remove the orphaned service-side records
+    db.prepare(`DELETE FROM service_items WHERE service_id = ?`).run(poolsService.id);
+    db.prepare(`DELETE FROM services WHERE id = ?`).run(poolsService.id);
+  }
+
+  // Fresh-install fallback: ensure a Pools facility exists with sensible
+  // defaults even when there was never a pools service to migrate from.
+  const existing = db.prepare(`SELECT id FROM facilities WHERE key = 'pools'`).get();
+  if (!existing) {
+    const r = db.prepare(`
+      INSERT INTO facilities
+        (key, name, category, description, hours, location, extra_info, image_urls, bookable,
+         indoor_pool_name, indoor_pool_subtitle, indoor_pool_image_url)
+      VALUES
+        ('pools', 'Pools', 'pool',
+         'Three outdoor pools right on the seafront — one Olympic-size — plus a heated indoor pool at SEArenity Club.',
+         'Outdoor pools · 7:00 AM – 7:00 PM', NULL,
+         'Towel rentals available near the Pool Bar',
+         '["/uploads/seeds/services/pools.png"]', 0,
+         'Indoor Pool', 'At SEArenity Club · Swimming cap is mandatory',
+         '/uploads/seeds/services/pools.png')
+    `).run();
+    const insertFacItem = db.prepare(`
+      INSERT INTO facility_items (facility_id, kind, name, subtitle, description, sort_order)
+      VALUES (?, 'pool', ?, ?, ?, ?)
+    `);
+    insertFacItem.run(r.lastInsertRowid, 'Olympic Pool',   'No pool floats allowed', 'olympic-pool', 10);
+    insertFacItem.run(r.lastInsertRowid, 'Children Pool',  'Pool floats allowed',    'children-pool', 20);
+    insertFacItem.run(r.lastInsertRowid, "Kids' Fountain", 'Supervised by parents',  'fountain-pool', 30);
+  }
+}
+
+// --- Tennis cleanup (idempotent): correct location, clear hours, seed coach hint ---
+db.prepare(`
+  UPDATE facilities SET
+    location = 'Two outdoor courts, Activities Zone',
+    hours = NULL,
+    price = NULL,
+    coach_hint = COALESCE(coach_hint, 'Book a session with one of our coaches · $15 per session, court included')
+  WHERE key = 'tennis'
+`).run();
+
+// --- Seed Marina activities (idempotent: only inserts if marina has none) ---
+{
+  const marina = db.prepare(`SELECT id FROM services WHERE key = 'marina'`).get();
+  if (marina) {
+    const existing = db.prepare(`SELECT COUNT(*) c FROM service_items WHERE service_id = ? AND kind = 'activity'`).get(marina.id);
+    if (existing.c === 0) {
+      const ins = db.prepare(`
+        INSERT INTO service_items (service_id, kind, name, subtitle, sort_order)
+        VALUES (?, 'activity', ?, ?, ?)
+      `);
+      ins.run(marina.id, 'Boat docking',            'Private and visitor slips', 10);
+      ins.run(marina.id, 'Coastal tours',           'For couples & groups',      20);
+      ins.run(marina.id, 'Boat dining experiences', 'Onboard meals at sea',      30);
+      ins.run(marina.id, 'Taxi boat service',       'To coastal restaurants',    40);
+    }
+  }
+}
+
+// --- Maritime Academy as a service (admin-editable) ---
+{
+  const existing = db.prepare(`SELECT id FROM services WHERE key = 'maritime_academy'`).get();
+  if (!existing) {
+    db.prepare(`
+      INSERT INTO services
+        (key, name, subtitle, description, phone, email, hours, location, extra_info, image_urls, sort_order, website, instagram_url)
+      VALUES
+        ('maritime_academy', 'Maritime Academy', 'Professional Maritime Education & Training',
+         'Professional Maritime Education & Training. Boat cruise certifications, safety courses, and crew training — taught by experienced instructors.',
+         '+961 81 273 239', 'admissions@imaritime.academy', NULL, NULL, NULL,
+         '["/uploads/seeds/services/maritime_academy.png"]', 1000,
+         'https://www.imaritimeacademy.com/',
+         'https://www.instagram.com/maritimeacademyleb/')
+    `).run();
+  }
 }
 
 // --- Services (Marina + Other Services) ---
@@ -349,14 +729,7 @@ const SERVICE_SEEDS = [
     extra_info: 'About 30 min delivery, charged to your room',
     image_urls: ['/uploads/seeds/services/room-service.jpg'],
   },
-  {
-    key: 'pools', sort_order: 70, name: 'Pools', subtitle: null,
-    description: 'Three outdoor pools right on the seafront — one Olympic-size — plus a heated indoor pool at SEArenity Club.',
-    phone: null, email: null,
-    hours: 'Outdoor pools · 7:00 AM – 7:00 PM', location: null,
-    extra_info: 'Towel rentals available near the Pool Bar',
-    image_urls: ['/uploads/seeds/services/pools.png'],
-  },
+  // Pools is managed in the Facilities tab — not seeded as a service.
   {
     key: 'landmarks', sort_order: 80, name: 'Explore Landmarks', subtitle: 'Destination Guide',
     description: 'Discover sights and services nearby — from historic landmarks to coastal services we recommend.',

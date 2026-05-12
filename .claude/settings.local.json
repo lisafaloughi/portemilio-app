@@ -20,7 +20,12 @@
       "Bash(ln -s node_modules.nosync node_modules)",
       "Bash(watchman watch-del *)",
       "Bash(watchman watch-project *)",
-      "Bash(xattr /Users/lisafaloughi/Desktop/Portemilio/mobile/node_modules.nosync/expo-asset/build/index.js)"
+      "Bash(xattr /Users/lisafaloughi/Desktop/Portemilio/mobile/node_modules.nosync/expo-asset/build/index.js)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s http://localhost:4000/api/facilities/pools)",
+      "Bash(grep -n \"function openServiceModal\\\\|imageManager.block,\\\\s*$\\\\|Save'$\" /Users/lisafaloughi/Desktop/Portemilio/backend/public/app.js)",
+      "Bash(curl -s http://localhost:4000/api/services/marina)",
+      "Bash(curl -s http://localhost:4000/api/services/maritime_academy)"
     ]
   }
 }

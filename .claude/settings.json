@@ -37,7 +37,10 @@
       "Bash(curl -s http://localhost:4000/api/services)",
       "Bash(curl -s -X GET http://localhost:4000/admin-api/marina-boats -H \"Authorization: Bearer noauth\" -w \"\\\\nHTTP %{http_code}\\\\n\")",
       "Bash(mkdir -p /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/landmarks && cp /Users/lisafaloughi/Desktop/Portemilio/mobile/assets/guide/*.jpg /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/landmarks/ && ls /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/landmarks/)",
-      "Bash(curl -s http://localhost:4000/api/landmarks)"
+      "Bash(curl -s http://localhost:4000/api/landmarks)",
+      "Bash(curl -s http://localhost:4000/api/services/pools)",
+      "Bash(curl -s http://localhost:4000/api/facilities/tennis)",
+      "Bash(curl -s http://localhost:4000/api/facilities/rove_pilates)"
     ],
     "additionalDirectories": [
       "/Users/lisafaloughi/Desktop/Portemilio/mobile/assets/guide"

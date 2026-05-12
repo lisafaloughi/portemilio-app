@@ -22,7 +22,7 @@ const FALLBACK_PHONE = '+961 9 123 470';
 const FALLBACK_TITLE = 'Marina';
 const FALLBACK_LEAD = 'Explore the marina — docking, coastal tours, dining at sea, and certified cruise training.';
 
-const FACILITIES = [
+const FALLBACK_ACTIVITIES = [
   { id: 'docking', name: 'Boat docking', subtitle: 'Private and visitor slips' },
   { id: 'tours', name: 'Coastal tours', subtitle: 'For couples & groups' },
   { id: 'dining', name: 'Boat dining experiences', subtitle: 'Onboard meals at sea' },
@@ -37,6 +37,19 @@ export default function MarinaScreen({ navigation }) {
   const phone = s?.phone || FALLBACK_PHONE;
   const apiImgs = serviceImages(s);
   const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
+  const activities = (s?.items && s.items.filter(i => i.kind === 'activity').length)
+    ? s.items.filter(i => i.kind === 'activity').map(a => ({
+        id: String(a.id), name: a.name, subtitle: a.subtitle || '',
+      }))
+    : FALLBACK_ACTIVITIES;
+
+  // Maritime Academy preview — pulls from the maritime_academy service so the
+  // card stays in sync with the Maritime Academy admin page.
+  const academy = useService('maritime_academy');
+  const academyImgs = serviceImages(academy);
+  const academyTitle = academy?.name || 'Maritime Academy';
+  const academySubtitle = academy?.subtitle || 'Professional maritime education & training';
+  const academyImage = academyImgs[0] || require('../assets/maritime_academy.png');
 
   useEffect(() => {
     if (heroImages.length <= 1) return;
@@ -100,7 +113,7 @@ export default function MarinaScreen({ navigation }) {
           </View>
 
           <Text style={styles.sectionLabel}>EXPLORE THE MARINA</Text>
-          {FACILITIES.map(f => (
+          {activities.map(f => (
             <View key={f.id} style={styles.serviceRow}>
               <View style={styles.serviceBullet} />
               <View style={{ flex: 1 }}>
@@ -118,7 +131,7 @@ export default function MarinaScreen({ navigation }) {
             style={({ pressed }) => [styles.extraCard, pressed && { opacity: 0.92 }]}
           >
             <ImageBackground
-              source={require('../assets/maritime_academy.png')}
+              source={academyImage}
               style={StyleSheet.absoluteFill}
               imageStyle={{ borderRadius: radius.lg }}
             >
@@ -129,10 +142,8 @@ export default function MarinaScreen({ navigation }) {
                 <MaterialCommunityIcons name="school-outline" size={12} color="#fff" />
                 <Text style={styles.extraBadgeText}>ACADEMY</Text>
               </View>
-              <Text style={styles.extraTitle}>Maritime Academy</Text>
-              <Text style={styles.extraSubtitle}>
-                Professional maritime education & training
-              </Text>
+              <Text style={styles.extraTitle}>{academyTitle}</Text>
+              <Text style={styles.extraSubtitle}>{academySubtitle}</Text>
               <View style={styles.extraCta}>
                 <Text style={styles.extraCtaText}>Open Maritime Academy</Text>
                 <MaterialCommunityIcons name="arrow-right" size={16} color="#fff" />

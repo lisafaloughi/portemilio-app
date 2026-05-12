@@ -1,7 +1,24 @@
 import React from 'react';
 import ServiceListPage from '../components/ServiceListPage';
+import { useFacility, facilityImages, toAbsolute } from '../data/facilities';
 
 const PLACEHOLDER = require('../assets/wellness-area.jpg');
+const FALLBACK = {
+  title: 'SEArenity Club',
+  description: 'Gym, classes, scuba, swimming, and personal training. Train with the team however you move.',
+  phone: '+9619635356',
+  instagram: 'https://www.instagram.com/searenityclub/',
+};
+
+function mapServices(items, fallback) {
+  const services = (items || []).filter(i => i.kind === 'service');
+  if (!services.length) return fallback;
+  return services.map(s => ({
+    id: String(s.id),
+    name: s.name,
+    image: s.image_url ? { uri: toAbsolute(s.image_url) } : PLACEHOLDER,
+  }));
+}
 
 const SERVICES = [
   { id: 'pt', name: 'Personal Training', image: PLACEHOLDER },
@@ -18,16 +35,18 @@ const SERVICES = [
 ];
 
 export default function SEArenityClubScreen({ navigation }) {
+  const f = useFacility('searenity_club');
+  const apiImgs = facilityImages(f);
   return (
     <ServiceListPage
       navigation={navigation}
-      title="SEArenity Club"
-      images={[PLACEHOLDER]}
-      description="Gym, classes, scuba, swimming, and personal training. Train with the team however you move."
-      phone="+9619635356"
+      title={f?.name || FALLBACK.title}
+      images={apiImgs.length ? apiImgs : [PLACEHOLDER]}
+      description={f?.description || FALLBACK.description}
+      phone={f?.phone || FALLBACK.phone}
       mapPinId="gym"
-      instagramUrl="https://www.instagram.com/searenityclub/"
-      services={SERVICES}
+      instagramUrl={f?.instagram_url || FALLBACK.instagram}
+      services={mapServices(f?.items, SERVICES)}
       showPrices={false}
       columns={2}
     />

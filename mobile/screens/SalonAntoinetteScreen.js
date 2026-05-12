@@ -1,7 +1,26 @@
 import React from 'react';
 import ServiceListPage from '../components/ServiceListPage';
+import { useFacility, facilityImages, toAbsolute } from '../data/facilities';
 
 const PLACEHOLDER = require('../assets/wellness-area.jpg');
+const FALLBACK = {
+  title: 'Salon Antoinette',
+  description: 'Hair, nails, and makeup — book in for a special occasion or a relaxed afternoon.',
+  phone: '+9619123469',
+  instagram: 'https://www.instagram.com/salon_antoinette/',
+};
+
+function mapItems(items, fallback) {
+  const services = (items || []).filter(i => i.kind === 'service');
+  if (!services.length) return fallback;
+  return services.map(s => ({
+    id: String(s.id),
+    name: s.name,
+    price: s.subtitle || '',
+    image: s.image_url ? { uri: toAbsolute(s.image_url) } : PLACEHOLDER,
+    items: s.sub_items ? (() => { try { return JSON.parse(s.sub_items); } catch { return []; } })() : [],
+  }));
+}
 
 const SERVICES = [
   {
@@ -57,16 +76,18 @@ const SERVICES = [
 ];
 
 export default function SalonAntoinetteScreen({ navigation }) {
+  const f = useFacility('salon_antoinette');
+  const apiImgs = facilityImages(f);
   return (
     <ServiceListPage
       navigation={navigation}
-      title="Salon Antoinette"
-      images={[PLACEHOLDER]}
-      description="Hair, nails, and makeup — book in for a special occasion or a relaxed afternoon."
-      phone="+9619123469"
+      title={f?.name || FALLBACK.title}
+      images={apiImgs.length ? apiImgs : [PLACEHOLDER]}
+      description={f?.description || FALLBACK.description}
+      phone={f?.phone || FALLBACK.phone}
       mapPinId="beauty-salon"
-      instagramUrl="https://www.instagram.com/salon_antoinette/"
-      services={SERVICES}
+      instagramUrl={f?.instagram_url || FALLBACK.instagram}
+      services={mapItems(f?.items, SERVICES)}
       priceNote="* Prices may differ slightly. Confirm at the salon."
     />
   );

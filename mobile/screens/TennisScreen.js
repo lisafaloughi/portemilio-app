@@ -18,13 +18,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 import { api } from '../api';
 import { useAuth } from '../context';
+import { useFacility, facilityImages, toAbsolute } from '../data/facilities';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const HERO_IMAGES = [require('../assets/tennis.jpg')];
+const FALLBACK_IMAGES = [require('../assets/tennis.jpg')];
+const FALLBACK_TITLE = 'Tennis';
+const FALLBACK_DESCRIPTION = 'Two outdoor courts at the resort. Pick a free slot from the timetable below to book a court, or train with one of our coaches.';
 const SCREEN_W = Dimensions.get('window').width;
 const SESSION_PRICE = 15;
 
-const COACHES = [
+const FALLBACK_COACHES = [
   {
     id: 'oksana',
     name: 'Oksana Belonenko',
@@ -42,6 +45,8 @@ const COACHES = [
     photo: null,
   },
 ];
+const FALLBACK_WARNING = 'When you book with a coach, they handle the court reservation — no need to book the court separately.';
+const FALLBACK_COACH_HINT = `Book a session with one of our coaches · $${15} per session, court included`;
 
 const OPEN_HOUR = 7;
 const CLOSE_HOUR = 21;
@@ -83,11 +88,30 @@ export default function TennisScreen({ navigation }) {
   const [cancelModal, setCancelModal] = useState(null); // { booking }
   const [cancelSuccessVisible, setCancelSuccessVisible] = useState(false);
 
+  const facility = useFacility('tennis');
+  const apiImgs = facilityImages(facility);
+  const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
+  const heroTitle = facility?.name || FALLBACK_TITLE;
+  const heroDescription = facility?.description || FALLBACK_DESCRIPTION;
+  const warningText = facility?.warning_message || FALLBACK_WARNING;
+  const coachHint = facility?.coach_hint || FALLBACK_COACH_HINT;
+  // Coaches: each item has name (= name), bio (= subtitle), availability (= description), phone
+  const coaches = (facility?.items && facility.items.filter(i => i.kind === 'coach').length)
+    ? facility.items.filter(i => i.kind === 'coach').map(c => ({
+        id: String(c.id),
+        name: c.name,
+        bio: c.subtitle || '',
+        availability: c.description || '',
+        phone: c.phone || '',
+        photo: c.image_url ? { uri: toAbsolute(c.image_url) } : null,
+      }))
+    : FALLBACK_COACHES;
+
   useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
-    const id = setInterval(() => setHeroIdx(p => (p + 1) % HERO_IMAGES.length), 4000);
+    if (heroImages.length <= 1) return;
+    const id = setInterval(() => setHeroIdx(p => (p + 1) % heroImages.length), 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [heroImages.length]);
 
   const loadWeek = useCallback(async () => {
     setLoading(true);
@@ -358,7 +382,7 @@ export default function TennisScreen({ navigation }) {
     <View style={styles.container}>
       <ScrollView scrollEnabled={!selection} showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={styles.hero}>
-          {HERO_IMAGES.map((src, i) => (
+          {heroImages.map((src, i) => (
             <View key={i} style={[StyleSheet.absoluteFill, { opacity: i === heroIdx ? 1 : 0 }]}>
               <Image source={src} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             </View>
@@ -370,14 +394,12 @@ export default function TennisScreen({ navigation }) {
             </Pressable>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>Tennis</Text>
+            <Text style={styles.heroTitle}>{heroTitle}</Text>
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.description}>
-            Two outdoor courts at the resort. Pick a free slot from the timetable below to book a court, or train with one of our coaches.
-          </Text>
+          <Text style={styles.description}>{heroDescription}</Text>
 
           <View style={[styles.rowsCard, { marginTop: spacing.xl }]}>
             <Pressable style={styles.row} onPress={openOnMap} hitSlop={6}>
@@ -392,17 +414,15 @@ export default function TennisScreen({ navigation }) {
 
           {/* ── Coaches ──────────────────────────────────────── */}
           <Text style={styles.sectionLabel}>NEED A COACH?</Text>
-          <Text style={styles.sectionHint}>
-            Book a session with one of our coaches · ${SESSION_PRICE} per session, court included
-          </Text>
-          <View style={styles.coachNote}>
-            <MaterialCommunityIcons name="information-outline" size={15} color={colors.accent} style={{ marginTop: 1 }} />
-            <Text style={styles.coachNoteText}>
-              When you book with a coach, they handle the court reservation — no need to book the court separately.
-            </Text>
-          </View>
+          <Text style={styles.sectionHint}>{coachHint}</Text>
+          {warningText ? (
+            <View style={styles.coachNote}>
+              <MaterialCommunityIcons name="information-outline" size={15} color={colors.accent} style={{ marginTop: 1 }} />
+              <Text style={styles.coachNoteText}>{warningText}</Text>
+            </View>
+          ) : null}
 
-          {COACHES.map(c => (
+          {coaches.map(c => (
             <View key={c.id} style={styles.coachCard}>
               <View style={styles.photoCircle}>
                 {c.photo ? (
