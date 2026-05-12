@@ -1,5 +1,6 @@
 import React from 'react';
 import CategoryPage from '../components/CategoryPage';
+import { useService, serviceImages } from '../data/services';
 
 const HERITAGE_TEXT =
   "Portemilio Hotel and Resort opened three decades ago with a simple intention: to create a place where people feel at home, not just for a stay, but across moments and generations. Set across more than 50,000m² by the sea, it offers the space to slow down, settle in, and feel part of something lasting. As both a hotel and a resort, it has become a place where some come for a visit, and others choose to stay, finding their own rhythm of life here.\n\n" +
@@ -8,12 +9,18 @@ const HERITAGE_TEXT =
   "Today, Portemilio continues to grow while staying true to what defines it. It is a place shaped by people, where lives unfold naturally, where memories are created over time, and where the intention remains simple: to be here for you, in the moments that matter most.";
 
 export default function HeritageScreen({ navigation }) {
+  const s = useService('heritage');
+  const title = s?.subtitle || 'Since 1996';
+  const description = s?.description || HERITAGE_TEXT;
+  const apiImgs = serviceImages(s);
+  const images = apiImgs.length ? apiImgs : [require('../assets/portemilio_vintage.jpg')];
+
   return (
     <CategoryPage
       navigation={navigation}
-      title="Since 1996"
-      images={[require('../assets/portemilio_vintage.jpg')]}
-      description={HERITAGE_TEXT}
+      title={title}
+      images={images}
+      description={description}
       descriptionStyle={{
         marginHorizontal: 0,
         textAlign: 'justify',

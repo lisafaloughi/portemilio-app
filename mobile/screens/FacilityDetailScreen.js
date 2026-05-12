@@ -12,10 +12,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Loading } from '../components/ui';
 import { colors, radius } from '../theme';
-import { api } from '../api';
+import { api, API_BASE_URL } from '../api';
 
 const HERO_HEIGHT = 300;
 const heroImg = (seed) => `https://picsum.photos/seed/${seed}/1200/700`;
+
+// API_BASE_URL ends in /api — strip it for static asset URLs (/uploads/...)
+const HOST = API_BASE_URL.replace(/\/api\/?$/, '');
+function absUrl(url) {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  return HOST + (url.startsWith('/') ? url : '/' + url);
+}
+function getHeroSource(f, facilityKey) {
+  if (f && f.image_urls) {
+    try {
+      const urls = JSON.parse(f.image_urls);
+      if (urls.length) return { uri: absUrl(urls[0]) };
+    } catch (_) { /* fall through */ }
+  }
+  return { uri: heroImg(facilityKey) };
+}
 
 export default function FacilityDetailScreen({ route, navigation }) {
   const { facilityKey, title } = route.params;
@@ -55,7 +72,7 @@ export default function FacilityDetailScreen({ route, navigation }) {
         contentContainerStyle={{ paddingBottom: f.bookable ? 120 : 40 }}
       >
         <ImageBackground
-          source={{ uri: heroImg(facilityKey) }}
+          source={getHeroSource(f, facilityKey)}
           style={styles.hero}
         >
           <View style={styles.heroGradient} />

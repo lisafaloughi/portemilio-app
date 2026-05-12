@@ -13,11 +13,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
+import { useService, serviceImages } from '../data/services';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const HERO_IMAGES = [require('../assets/marina.png')];
+const FALLBACK_IMAGES = [require('../assets/marina.png')];
 const PLACEHOLDER = require('../assets/marina.png');
-const MARINA_PHONE = '+961 9 123 470';
+const FALLBACK_PHONE = '+961 9 123 470';
+const FALLBACK_TITLE = 'Marina';
+const FALLBACK_LEAD = 'Explore the marina — docking, coastal tours, dining at sea, and certified cruise training.';
 
 const FACILITIES = [
   { id: 'docking', name: 'Boat docking', subtitle: 'Private and visitor slips' },
@@ -28,14 +31,20 @@ const FACILITIES = [
 
 export default function MarinaScreen({ navigation }) {
   const [index, setIndex] = useState(0);
+  const s = useService('marina');
+  const title = s?.name || FALLBACK_TITLE;
+  const lead = s?.description || FALLBACK_LEAD;
+  const phone = s?.phone || FALLBACK_PHONE;
+  const apiImgs = serviceImages(s);
+  const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
 
   useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
+    if (heroImages.length <= 1) return;
     const id = setInterval(() => {
-      setIndex(prev => (prev + 1) % HERO_IMAGES.length);
+      setIndex(prev => (prev + 1) % heroImages.length);
     }, 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [heroImages.length]);
 
   return (
     <View style={styles.container}>
@@ -45,7 +54,7 @@ export default function MarinaScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 60 }}
       >
         <View style={styles.hero}>
-          {HERO_IMAGES.map((src, i) => (
+          {heroImages.map((src, i) => (
             <View
               key={i}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
@@ -64,20 +73,18 @@ export default function MarinaScreen({ navigation }) {
             </Pressable>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>Marina</Text>
+            <Text style={styles.heroTitle}>{title}</Text>
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.lead}>
-            Explore the marina — docking, coastal tours, dining at sea, and certified cruise training.
-          </Text>
+          <Text style={styles.lead}>{lead}</Text>
 
           <View style={styles.actionRow}>
             <Pressable
               style={styles.actionBtn}
               onPress={() =>
-                Linking.openURL(`tel:${MARINA_PHONE.replace(/\s+/g, '')}`)
+                Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`)
               }
             >
               <MaterialCommunityIcons name="phone-outline" size={16} color="#fff" />

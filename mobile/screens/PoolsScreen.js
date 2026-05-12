@@ -12,10 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
+import { useService, serviceImages } from '../data/services';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const HERO_IMAGES = [require('../assets/pools.png')];
+const FALLBACK_IMAGES = [require('../assets/pools.png')];
 const POOL_PLACEHOLDER = require('../assets/pools.png');
+const FALLBACK_TITLE = 'Pools';
+const FALLBACK_DESCRIPTION = 'Three outdoor pools right on the seafront — one Olympic-size — plus a heated indoor pool at SEArenity Club.';
 
 const OUTDOOR_POOLS = [
   { id: 'olympic', name: 'Olympic Pool', subtitle: 'No pool floats allowed', image: POOL_PLACEHOLDER, mapPinId: 'olympic-pool' },
@@ -31,14 +34,21 @@ const OUTDOOR_POOLS = [
 
 export default function PoolsScreen({ navigation }) {
   const [index, setIndex] = useState(0);
+  const s = useService('pools');
+  const title = s?.name || FALLBACK_TITLE;
+  const description = s?.description || FALLBACK_DESCRIPTION;
+  const hours = s?.hours || 'Outdoor pools · 7:00 AM – 7:00 PM';
+  const extra = s?.extra_info || 'Available near the Pool Bar';
+  const apiImgs = serviceImages(s);
+  const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
 
   useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
+    if (heroImages.length <= 1) return;
     const id = setInterval(() => {
-      setIndex(prev => (prev + 1) % HERO_IMAGES.length);
+      setIndex(prev => (prev + 1) % heroImages.length);
     }, 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [heroImages.length]);
 
   return (
     <View style={styles.container}>
@@ -48,7 +58,7 @@ export default function PoolsScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: 60 }}
       >
         <View style={styles.hero}>
-          {HERO_IMAGES.map((src, i) => (
+          {heroImages.map((src, i) => (
             <View
               key={i}
               style={[StyleSheet.absoluteFill, { opacity: i === index ? 1 : 0 }]}
@@ -67,14 +77,12 @@ export default function PoolsScreen({ navigation }) {
             </Pressable>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>Pools</Text>
+            <Text style={styles.heroTitle}>{title}</Text>
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.description}>
-            Three outdoor pools right on the seafront — one Olympic-size — plus a heated indoor pool at SEArenity Club.
-          </Text>
+          <Text style={styles.description}>{description}</Text>
 
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
@@ -86,7 +94,7 @@ export default function PoolsScreen({ navigation }) {
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Hours</Text>
-                <Text style={styles.rowSubtitle}>Outdoor pools · 7:00 AM – 7:00 PM</Text>
+                <Text style={styles.rowSubtitle}>{hours}</Text>
               </View>
             </View>
             <View style={styles.iconDivider} />
@@ -99,7 +107,7 @@ export default function PoolsScreen({ navigation }) {
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Towel rentals</Text>
-                <Text style={styles.rowSubtitle}>Available near the Pool Bar</Text>
+                <Text style={styles.rowSubtitle}>{extra}</Text>
               </View>
             </View>
           </View>

@@ -96,6 +96,19 @@ const api = {
   createFacility: (b) => call(`${ADMIN}/facilities`, { method: 'POST', body: b }),
   updateFacility: (id, b) => call(`${ADMIN}/facilities/${id}`, { method: 'PUT', body: b }),
   deleteFacility: (id) => call(`${ADMIN}/facilities/${id}`, { method: 'DELETE' }),
+  services: () => call(`${ADMIN}/services`),
+  updateService: (id, b) => call(`${ADMIN}/services/${id}`, { method: 'PUT', body: b }),
+  marinaBoats: () => call(`${ADMIN}/marina-boats`),
+  createMarinaBoat: (b) => call(`${ADMIN}/marina-boats`, { method: 'POST', body: b }),
+  updateMarinaBoat: (id, b) => call(`${ADMIN}/marina-boats/${id}`, { method: 'PUT', body: b }),
+  deleteMarinaBoat: (id) => call(`${ADMIN}/marina-boats/${id}`, { method: 'DELETE' }),
+  landmarks: () => call(`${ADMIN}/landmarks`),
+  createLandmark: (b) => call(`${ADMIN}/landmarks`, { method: 'POST', body: b }),
+  updateLandmark: (id, b) => call(`${ADMIN}/landmarks/${id}`, { method: 'PUT', body: b }),
+  deleteLandmark: (id) => call(`${ADMIN}/landmarks/${id}`, { method: 'DELETE' }),
+  createLandmarkLocation: (b) => call(`${ADMIN}/landmark-locations`, { method: 'POST', body: b }),
+  updateLandmarkLocation: (id, b) => call(`${ADMIN}/landmark-locations/${id}`, { method: 'PUT', body: b }),
+  deleteLandmarkLocation: (id) => call(`${ADMIN}/landmark-locations/${id}`, { method: 'DELETE' }),
   events: () => call(`${ADMIN}/events`),
   createEvent: (b) => call(`${ADMIN}/events`, { method: 'POST', body: b }),
   updateEvent: (id, b) => call(`${ADMIN}/events/${id}`, { method: 'PUT', body: b }),
@@ -1074,9 +1087,10 @@ async function renderContent() {
   const TS = [
     { id: 'restaurants', label: 'Restaurants & Bars' },
     { id: 'facilities', label: 'Facilities' },
-    { id: 'events', label: 'Other Services' },
+    { id: 'marina', label: 'La Marina' },
+    { id: 'services', label: 'Other Services' },
   ];
-  if (!['restaurants', 'facilities', 'events'].includes(state.contentTab)) state.contentTab = 'restaurants';
+  if (!['restaurants', 'facilities', 'marina', 'services'].includes(state.contentTab)) state.contentTab = 'restaurants';
   for (const t of TS) {
     tabs.append(h('button', {
       class: 'subtab' + (state.contentTab === t.id ? ' active' : ''),
@@ -1087,7 +1101,8 @@ async function renderContent() {
 
   if (state.contentTab === 'restaurants') await renderRestaurants(body);
   else if (state.contentTab === 'facilities') await renderFacilities(body);
-  else if (state.contentTab === 'events') await renderEvents(body);
+  else if (state.contentTab === 'marina') await renderMarina(body);
+  else if (state.contentTab === 'services') await renderServices(body);
 }
 
 // --- Restaurants
@@ -1102,7 +1117,7 @@ async function renderRestaurants(body) {
   const t = h('table', { class: 'table' });
   t.append(h('thead', {}, h('tr', {},
     h('th', {}, 'Name'), h('th', {}, 'Categories'), h('th', {}, 'Hours'),
-    h('th', {}, 'Location'), h('th', {}, 'Phone'), h('th', {}, 'Delivery'),
+    h('th', {}, 'Location'), h('th', {}, 'Phone'),
   )));
   const tb = h('tbody');
   for (const r of list) {
@@ -1115,7 +1130,6 @@ async function renderRestaurants(body) {
       h('td', {}, r.hours || '—'),
       h('td', {}, r.address || r.location || '—'),
       h('td', {}, r.phone || '—'),
-      h('td', {}, r.delivery ? 'Yes' : 'No'),
     ));
   }
   t.appendChild(tb);
@@ -1611,7 +1625,7 @@ async function renderFacilities(body) {
   const tb = h('tbody');
   for (const f of list) {
     tb.append(h('tr', { style: 'cursor: pointer;', onclick: () => openFacilityModal(f) },
-      h('td', {}, h('div', { style: 'font-weight: 600;' }, f.name), h('div', { class: 'muted-text' }, f.key)),
+      h('td', {}, h('div', { style: 'font-weight: 600;' }, f.name), f.category ? h('div', { class: 'muted-text' }, f.category) : null),
       h('td', {}, f.category || '—'),
       h('td', {}, f.hours || '—'),
       h('td', {}, f.location || '—'),
@@ -1629,12 +1643,221 @@ async function renderFacilities(body) {
   body.appendChild(h('div', { class: 'card', style: 'padding: 0; overflow: hidden;' }, t));
 }
 
+// Self-contained image manager: thumbnails with drag-to-reorder (live FLIP
+// reorder), click-to-preview lightbox, per-image delete (with confirm), and
+// an "Add image" button that uploads to /admin-api/upload.
+//
+// Returns:
+//   block:    the entire field block (label + grid + add button) ready to
+//             append to a form.
+//   grid:     the inner grid element — used by the form to attach a drop
+//             guard so the URL can't be dropped into adjacent text fields.
+//   getUrls:  () => string[]  the current ordered list of image URLs.
+function createImageManager(initialUrls = [], label = 'Images') {
+  const imageUrls = [...initialUrls];
+  let dragEl = null;
+
+  function openImagePreview(src) {
+    const overlay = h('div', {
+      style: 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;',
+      onclick: () => overlay.remove(),
+    });
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'max-width:88vw;max-height:88vh;border-radius:12px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,0.6);';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+  }
+
+  function syncFromDom() {
+    imageUrls.splice(0, imageUrls.length,
+      ...Array.from(grid.children).map(c => c._url).filter(Boolean));
+  }
+
+  function flipReorder(perform) {
+    const items = Array.from(grid.children);
+    const before = items.map(el => el.getBoundingClientRect());
+    perform();
+    items.forEach((el, i) => {
+      if (el === dragEl) return;
+      const dx = before[i].left - el.getBoundingClientRect().left;
+      const dy = before[i].top - el.getBoundingClientRect().top;
+      if (dx === 0 && dy === 0) return;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 180ms ease';
+        el.style.transform = '';
+        const onEnd = (ev) => {
+          if (ev.propertyName && ev.propertyName !== 'transform') return;
+          el.style.transition = '';
+          el.removeEventListener('transitionend', onEnd);
+        };
+        el.addEventListener('transitionend', onEnd);
+      });
+    });
+  }
+
+  async function uploadFile(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const headers = {};
+    if (state.token) headers.Authorization = 'Bearer ' + state.token;
+    const res = await fetch(ADMIN + '/upload', { method: 'POST', headers, body: fd });
+    if (!res.ok) {
+      let msg = 'Upload failed';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch (_) {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  function render() {
+    grid.innerHTML = '';
+    imageUrls.forEach((url) => {
+      const thumb = document.createElement('div');
+      thumb.draggable = true;
+      thumb._url = url;
+      thumb.title = 'Click to preview · drag to reorder';
+      thumb.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px;border-radius:10px;cursor:grab;background:transparent;user-select:none;-webkit-user-select:none;-webkit-user-drag:element;';
+
+      thumb.addEventListener('click', (e) => {
+        if (e.target.closest && e.target.closest('button')) return;
+        openImagePreview(url);
+      });
+      thumb.addEventListener('mousedown', () => {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) active.blur();
+        const sel = window.getSelection && window.getSelection();
+        if (sel && !sel.isCollapsed) sel.removeAllRanges();
+      });
+      thumb.addEventListener('selectstart', (e) => e.preventDefault());
+
+      thumb.addEventListener('dragstart', (e) => {
+        for (const child of grid.children) {
+          child.style.transition = '';
+          child.style.transform = '';
+        }
+        dragEl = thumb;
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('application/x-img-reorder', '1'); } catch (_) {}
+        const imgEl = thumb.querySelector('img');
+        if (imgEl) {
+          const r = imgEl.getBoundingClientRect();
+          e.dataTransfer.setDragImage(imgEl, Math.max(0, e.clientX - r.left), Math.max(0, e.clientY - r.top));
+        }
+        setTimeout(() => { thumb.style.opacity = '0.4'; }, 0);
+      });
+      thumb.addEventListener('dragend', () => {
+        thumb.style.opacity = '1';
+        thumb.style.transform = '';
+        thumb.style.transition = '';
+        dragEl = null;
+        syncFromDom();
+      });
+      thumb.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!dragEl || dragEl === thumb) return;
+        const r = thumb.getBoundingClientRect();
+        const isAfter = e.clientX > r.left + r.width / 2;
+        const target = isAfter ? thumb.nextSibling : thumb;
+        if (dragEl === target || dragEl.nextSibling === target) return;
+        flipReorder(() => { grid.insertBefore(dragEl, target); });
+      });
+      thumb.addEventListener('drop', (e) => { e.preventDefault(); });
+
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.draggable = false;
+      img.setAttribute('draggable', 'false');
+      img.style.cssText = 'width:88px;height:88px;object-fit:cover;border-radius:8px;display:block;-webkit-user-drag:none;user-drag:none;-webkit-user-select:none;user-select:none;pointer-events:none;';
+
+      const delBtn = h('button', {
+        type: 'button',
+        title: 'Delete image',
+        style: 'background:none;border:none;cursor:pointer;color:#c0392b;padding:4px 6px;display:flex;align-items:center;justify-content:center;-webkit-user-drag:none;user-drag:none;',
+        onclick: () => {
+          if (!confirm('Are you sure you want to delete this image?')) return;
+          const idx = imageUrls.indexOf(url);
+          if (idx >= 0) { imageUrls.splice(idx, 1); render(); }
+        },
+      });
+      delBtn.draggable = false;
+      delBtn.setAttribute('draggable', 'false');
+      delBtn.addEventListener('dragstart', (e) => { e.preventDefault(); });
+      delBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:block;pointer-events:none;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
+
+      thumb.appendChild(img);
+      thumb.appendChild(delBtn);
+      grid.appendChild(thumb);
+    });
+  }
+
+  const grid = h('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;min-height:20px;user-select:none;-webkit-user-select:none;' });
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.multiple = true;
+  fileInput.style.display = 'none';
+  fileInput.onchange = async () => {
+    const files = Array.from(fileInput.files);
+    fileInput.value = '';
+    for (const file of files) {
+      try {
+        const data = await uploadFile(file);
+        if (data.url) { imageUrls.push(data.url); render(); }
+      } catch (err) { toast(err.message || 'Upload failed', 'error'); }
+    }
+  };
+
+  const addBtn = h('button', {
+    type: 'button', class: 'btn ghost', style: 'margin-top:8px;',
+    onclick: () => fileInput.click(),
+  }, '+ Add image');
+
+  render();
+
+  const block = h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, label),
+    grid,
+    fileInput,
+    addBtn,
+  );
+
+  return { block, grid, getUrls: () => imageUrls.slice() };
+}
+
 function openFacilityModal(f) {
   const isEdit = !!f;
+
+  // Parse existing image_urls (and old single image_url as fallback)
+  let initialImages = [];
+  if (f?.image_urls) {
+    try { initialImages = JSON.parse(f.image_urls); } catch (_) { initialImages = []; }
+  }
+  if (!initialImages.length && f?.image_url && !f.image_url.startsWith('placeholder:')) {
+    initialImages = [f.image_url];
+  }
+
+  const imageManager = createImageManager(initialImages);
+
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target).entries());
-    fd.bookable = e.target.bookable.checked ? 1 : 0;
+    // Preserve internal fields the admin doesn't see (key, bookable)
+    if (isEdit) {
+      if (f.key) fd.key = f.key;
+      fd.bookable = f.bookable ? 1 : 0;
+    } else {
+      // New facility: synthesize a stable key from the name
+      fd.key = (fd.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `facility_${Date.now()}`;
+      fd.bookable = 0;
+    }
+    const urls = imageManager.getUrls();
+    fd.image_urls = urls.length ? JSON.stringify(urls) : null;
     try {
       if (isEdit) await api.updateFacility(f.id, fd);
       else await api.createFacility(fd);
@@ -1642,37 +1865,784 @@ function openFacilityModal(f) {
     } catch (err) { toast(err.message, 'error'); }
   } },
     h('div', { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Key'), h('input', { name: 'key', value: f?.key || '', required: true })),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Name'), h('input', { name: 'name', value: f?.name || '', required: true })),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Category'), h('input', { name: 'category', value: f?.category || '' })),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Hours'), h('input', { name: 'hours', value: f?.hours || '' })),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Location'), h('input', { name: 'location', value: f?.location || '' })),
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Phone'), h('input', { name: 'phone', value: f?.phone || '' })),
-    ),
-    h('div', { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Price'), h('input', { name: 'price', value: f?.price || '' })),
       h('div', { class: 'field' },
-        h('label', { class: 'field-label' }, 'Extra info'),
-        h('input', { name: 'extra_info', value: f?.extra_info || '' }),
+        h('label', { class: 'field-label' }, 'Name *'),
+        h('input', { name: 'name', value: f?.name || '', required: true, placeholder: 'e.g. Outdoor Swimming Pool' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Category'),
+        h('input', { name: 'category', value: f?.category || '', placeholder: 'e.g. pool · wellness · sports', list: 'facility-categories' }),
       ),
     ),
-    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Description'), h('textarea', { name: 'description' }, f?.description || '')),
+    h('datalist', { id: 'facility-categories' },
+      h('option', { value: 'pool' }),
+      h('option', { value: 'wellness' }),
+      h('option', { value: 'sports' }),
+      h('option', { value: 'family' }),
+      h('option', { value: 'outdoor' }),
+      h('option', { value: 'services' }),
+    ),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Hours'),
+        h('input', { name: 'hours', value: f?.hours || '', placeholder: 'e.g. Daily 8:00 AM – 7:00 PM' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Location'),
+        h('input', { name: 'location', value: f?.location || '', placeholder: 'e.g. Main resort deck, sea level' }),
+      ),
+    ),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Phone'),
+        h('input', { name: 'phone', value: f?.phone || '', placeholder: 'e.g. +961 9 640 666' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Price'),
+        h('input', { name: 'price', value: f?.price || '', placeholder: 'e.g. Free for guests · $15 per hour' }),
+      ),
+    ),
     h('div', { class: 'field' },
-      h('label', { class: 'checkbox-row' },
-        (() => { const c = h('input', { type: 'checkbox', name: 'bookable' }); c.checked = !!f?.bookable; return c; })(),
-        'Bookable',
-      ),
+      h('label', { class: 'field-label' }, 'Extra info (shown as "Information")'),
+      h('input', { name: 'extra_info', value: f?.extra_info || '', placeholder: 'e.g. Towels provided. Reservations recommended.' }),
     ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Description'),
+      h('textarea', { name: 'description', rows: 3 }, f?.description || ''),
+    ),
+    imageManager.block,
     h('div', { class: 'modal-actions' },
       h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
       h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save' : 'Create'),
     ),
   );
-  const m = openModal(h('div', {}, h('h3', {}, isEdit ? 'Edit facility' : 'New facility'), form));
+
+  // Safety net: cancel any image-reorder drop that lands outside the grid,
+  // so the URL can't be inserted into a focused textarea/input.
+  form.addEventListener('dragover', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'none';
+    }
+  });
+  form.addEventListener('drop', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  const m = openModal(h('div', {}, h('h3', {}, isEdit ? 'Edit facility' : 'New facility'), form), { large: true });
+}
+
+// --- La Marina (single record stored in `services` table with key='marina')
+async function renderMarina(body) {
+  $('#page-actions').innerHTML = '';
+  $('#page-actions').appendChild(h('button', { class: 'btn primary', onclick: () => openBoatModal() }, '+ Add boat'));
+
+  const [services, boats] = await Promise.all([api.services(), api.marinaBoats()]);
+  const marina = services.find(s => s.key === 'marina');
+
+  if (marina) {
+    // First image (if any) is shown alongside the description
+    let firstImage = null;
+    if (marina.image_urls) {
+      try {
+        const urls = JSON.parse(marina.image_urls);
+        if (urls.length) firstImage = urls[0];
+      } catch (_) { /* ignore */ }
+    }
+
+    const imgEl = firstImage
+      ? (() => {
+          const i = document.createElement('img');
+          i.src = firstImage;
+          i.style.cssText = 'width:140px;height:140px;object-fit:cover;border-radius:12px;flex-shrink:0;';
+          return i;
+        })()
+      : null;
+
+    body.appendChild(
+      h('div', {
+        class: 'card',
+        style: 'padding:20px;cursor:pointer;margin-bottom:20px;display:flex;gap:20px;align-items:center;',
+        onclick: () => openServiceModal(marina),
+      },
+        imgEl,
+        h('div', { style: 'flex:1;min-width:0;' },
+          h('div', { style: 'font-size:18px;font-weight:700;color:var(--text);' }, marina.name),
+          marina.description ? h('div', { class: 'muted-text', style: 'margin-top:8px;font-size:14px;line-height:1.5;' }, marina.description) : null,
+          h('div', { style: 'margin-top:16px;color:var(--accent);font-weight:600;font-size:13px;' }, 'Click to edit La Marina page content'),
+        ),
+      ),
+    );
+  }
+
+  // ---- Boats roster section ----
+  const computeLabel = (list) => list.length
+    ? `${list.filter(x => x.status === 'docked').length} docked · ${list.filter(x => x.status === 'at_sea').length} at sea`
+    : 'No boats yet';
+
+  const countsLabel = h('div', { class: 'muted-text', style: 'font-size:13px;' }, computeLabel(boats));
+
+  body.appendChild(h('div', { style: 'display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;' },
+    h('h3', { style: 'margin:0;font-size:16px;font-weight:700;' }, 'Boats parked at the marina'),
+    countsLabel,
+  ));
+
+  if (!boats.length) {
+    body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No boats registered yet. Click "+ Add boat" to add one.')));
+    return;
+  }
+
+  const pillStyle = (status) => {
+    const docked = status === 'docked';
+    return `padding:4px 12px;font-size:12px;font-weight:700;letter-spacing:0.3px;border-radius:999px;${
+      docked
+        ? 'background:#e7f6ec;color:#1f7a3e;border-color:#cdebd6;'
+        : 'background:#fff3e6;color:#a25a1a;border-color:#f3dab8;'
+    }`;
+  };
+
+  const t = h('table', { class: 'table' });
+  t.append(h('thead', {}, h('tr', {},
+    h('th', {}, 'Guest'),
+    h('th', {}, 'Boat'),
+    h('th', {}, 'Phone'),
+    h('th', {}, 'Slip #'),
+    h('th', {}, 'Status'),
+    h('th', { class: 'right' }, ''),
+  )));
+  const tb = h('tbody');
+  for (const b of boats) {
+    // Pill button — click toggles in place, no full re-render so the row
+    // stays visible the whole time.
+    const pillBtn = h('button', {
+      class: 'btn ghost sm',
+      style: pillStyle(b.status),
+      onclick: async (e) => {
+        e.stopPropagation();
+        const previous = b.status;
+        const next = previous === 'docked' ? 'at_sea' : 'docked';
+        // Optimistic update — flip the pill immediately, revert if the API fails
+        b.status = next;
+        pillBtn.textContent = next === 'docked' ? 'Docked' : 'At sea';
+        pillBtn.setAttribute('style', pillStyle(next));
+        countsLabel.textContent = computeLabel(boats);
+        try {
+          await api.updateMarinaBoat(b.id, { status: next });
+        } catch (err) {
+          b.status = previous;
+          pillBtn.textContent = previous === 'docked' ? 'Docked' : 'At sea';
+          pillBtn.setAttribute('style', pillStyle(previous));
+          countsLabel.textContent = computeLabel(boats);
+          toast(err.message || 'Could not update', 'error');
+        }
+      },
+    }, b.status === 'docked' ? 'Docked' : 'At sea');
+
+    tb.append(h('tr', { style: 'cursor: pointer;', onclick: () => openBoatModal(b) },
+      h('td', {}, h('div', { style: 'font-weight: 600;' }, b.guest_name)),
+      h('td', {}, b.boat_name || '—'),
+      h('td', {}, b.phone || '—'),
+      h('td', {}, b.slip_number || '—'),
+      h('td', {}, pillBtn),
+      h('td', { class: 'right' },
+        h('button', {
+          class: 'icon-btn danger',
+          onclick: async (e) => {
+            e.stopPropagation();
+            if (!confirm(`Remove ${b.guest_name}'s boat from the marina?`)) return;
+            try {
+              await api.deleteMarinaBoat(b.id);
+              toast('Removed');
+              setTab('content');
+            } catch (err) { toast(err.message, 'error'); }
+          },
+        }, 'Delete'),
+      ),
+    ));
+  }
+  t.appendChild(tb);
+  body.appendChild(h('div', { class: 'card', style: 'padding: 0; overflow: hidden;' }, t));
+}
+
+function openBoatModal(b) {
+  const isEdit = !!b;
+  const form = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    fd.status = e.target.status.checked ? 'at_sea' : 'docked';
+    // Empty strings → null
+    for (const k of ['boat_name', 'slip_number', 'phone', 'notes']) {
+      if (fd[k] === '') fd[k] = null;
+    }
+    try {
+      if (isEdit) await api.updateMarinaBoat(b.id, fd);
+      else await api.createMarinaBoat(fd);
+      toast('Saved'); m.close(); setTab('content');
+    } catch (err) { toast(err.message, 'error'); }
+  } },
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Guest name *'),
+        h('input', { name: 'guest_name', value: b?.guest_name || '', required: true, placeholder: "e.g. John Smith" }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Slip / parking #'),
+        h('input', { name: 'slip_number', value: b?.slip_number || '', placeholder: 'e.g. A-12' }),
+      ),
+    ),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Boat name'),
+        h('input', { name: 'boat_name', value: b?.boat_name || '', placeholder: 'Optional' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Phone'),
+        h('input', { name: 'phone', value: b?.phone || '', placeholder: 'Optional' }),
+      ),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'checkbox-row' },
+        (() => { const c = h('input', { type: 'checkbox', name: 'status' }); c.checked = b?.status === 'at_sea'; return c; })(),
+        'Currently out at sea',
+      ),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Notes'),
+      h('textarea', { name: 'notes', rows: 2 }, b?.notes || ''),
+    ),
+    h('div', { class: 'modal-actions' },
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save' : 'Add boat'),
+    ),
+  );
+  const m = openModal(h('div', {}, h('h3', {}, isEdit ? 'Edit boat' : 'Add boat'), form));
+}
+
+// --- Other Services (everything except Marina)
+// Per-service field config — only the fields actually shown in the client app
+// are surfaced in admin. Always include `name` and `images`.
+const SERVICE_FIELDS = {
+  front_desk:     { subtitle: false, description: true, phone: true, email: true,  hours: true,  location: true,  extra_info: false },
+  heritage:       { subtitle: true,  description: true, phone: false, email: false, hours: false, location: false, extra_info: false },
+  seaside_access: { subtitle: false, description: true, phone: true, email: false, hours: true,  location: true,  extra_info: true  },
+  housekeeping:   { subtitle: false, description: true, phone: true, email: false, hours: true,  location: false, extra_info: true  },
+  room_service:   { subtitle: false, description: true, phone: true, email: false, hours: true,  location: false, extra_info: true  },
+  get_to_city:    { subtitle: false, description: true, phone: true, email: false, hours: false, location: false, extra_info: true  },
+  celebrate:      { subtitle: true,  description: true, phone: true, email: false, hours: false, location: false, extra_info: false },
+  pools:          { subtitle: false, description: true, phone: false, email: false, hours: true,  location: false, extra_info: true  },
+  marina:         { subtitle: false, description: true, phone: true, email: false, hours: false, location: false, extra_info: false },
+};
+const FIELD_LABELS = {
+  subtitle: 'Subtitle', description: 'Description', phone: 'Phone',
+  email: 'Email', hours: 'Hours', location: 'Location', extra_info: 'Extra info',
+};
+
+async function renderServices(body) {
+  $('#page-actions').innerHTML = '';
+  const list = (await api.services()).filter(s => s.key !== 'marina');
+  if (!list.length) { body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No services configured.'))); return; }
+
+  const t = h('table', { class: 'table' });
+  t.append(h('thead', {}, h('tr', {},
+    h('th', {}, 'Name'), h('th', {}, 'Hours'),
+    h('th', {}, 'Phone'), h('th', {}, 'Location'),
+  )));
+  const tb = h('tbody');
+  for (const s of list) {
+    tb.append(h('tr', {
+      style: 'cursor: pointer;',
+      onclick: () => { s.key === 'landmarks' ? openLandmarksManager(s) : openServiceModal(s); },
+    },
+      h('td', {},
+        h('div', { style: 'font-weight: 600;' }, s.name),
+        s.subtitle ? h('div', { class: 'muted-text' }, s.subtitle) : null,
+      ),
+      h('td', {}, s.hours || '—'),
+      h('td', {}, s.phone || '—'),
+      h('td', {}, s.location || '—'),
+    ));
+  }
+  t.appendChild(tb);
+  body.appendChild(h('div', { class: 'card', style: 'padding: 0; overflow: hidden;' }, t));
+}
+
+function openServiceModal(s) {
+  // Parse existing image_urls
+  let initialImages = [];
+  if (s?.image_urls) {
+    try { initialImages = JSON.parse(s.image_urls); } catch (_) { initialImages = []; }
+  }
+  const imageManager = createImageManager(initialImages);
+
+  // Field config — show only the fields the client actually sees for this service
+  const cfg = SERVICE_FIELDS[s?.key] || { subtitle: true, description: true, phone: true, email: true, hours: true, location: true, extra_info: true };
+  const isLongDescription = s?.key === 'heritage';
+
+  // Build the row of two side-by-side fields, falling back to one full-width
+  // field if only one of the pair is enabled (avoids lopsided layout).
+  const pair = (a, b) => {
+    if (cfg[a.key] && cfg[b.key]) return h('div', { class: 'field-row' }, a.el, b.el);
+    if (cfg[a.key]) return a.el;
+    if (cfg[b.key]) return b.el;
+    return null;
+  };
+
+  const nameField = h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, 'Name *'),
+    h('input', { name: 'name', value: s?.name || '', required: true }),
+  );
+  const subtitleField = {
+    key: 'subtitle',
+    el: h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, FIELD_LABELS.subtitle),
+      h('input', { name: 'subtitle', value: s?.subtitle || '', placeholder: 'Shown under the title' }),
+    ),
+  };
+  const descriptionField = cfg.description ? h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, FIELD_LABELS.description),
+    h('textarea', { name: 'description', rows: isLongDescription ? 10 : 4 }, s?.description || ''),
+  ) : null;
+  const phoneField = { key: 'phone', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, FIELD_LABELS.phone),
+    h('input', { name: 'phone', value: s?.phone || '', placeholder: 'e.g. +961 9 123 456' }),
+  )};
+  const emailField = { key: 'email', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, FIELD_LABELS.email),
+    h('input', { name: 'email', value: s?.email || '', placeholder: 'e.g. service@portemilio.com' }),
+  )};
+  const hoursField = { key: 'hours', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, FIELD_LABELS.hours),
+    h('input', { name: 'hours', value: s?.hours || '', placeholder: 'e.g. 24 hours · 7 AM – 7 PM' }),
+  )};
+  const locationField = { key: 'location', el: h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, FIELD_LABELS.location),
+    h('input', { name: 'location', value: s?.location || '', placeholder: 'e.g. Lobby · Ground floor' }),
+  )};
+  const extraField = cfg.extra_info ? h('div', { class: 'field' },
+    h('label', { class: 'field-label' }, FIELD_LABELS.extra_info),
+    h('input', { name: 'extra_info', value: s?.extra_info || '', placeholder: 'Anything else clients should know' }),
+  ) : null;
+
+  // Hidden inputs ensure the server receives `null` for fields we removed
+  // from the UI (instead of preserving stale values).
+  const hidden = ['subtitle', 'phone', 'email', 'hours', 'location', 'extra_info']
+    .filter(k => !cfg[k])
+    .map(k => h('input', { type: 'hidden', name: k, value: '' }));
+
+  const form = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    for (const k of ['subtitle', 'description', 'phone', 'email', 'hours', 'location', 'extra_info']) {
+      if (fd[k] === '') fd[k] = null;
+    }
+    const urls = imageManager.getUrls();
+    fd.image_urls = urls.length ? JSON.stringify(urls) : null;
+    try {
+      await api.updateService(s.id, fd);
+      toast('Saved'); m.close(); setTab('content');
+    } catch (err) { toast(err.message, 'error'); }
+  } },
+    nameField,
+    cfg.subtitle ? subtitleField.el : null,
+    descriptionField,
+    pair(phoneField, emailField),
+    pair(hoursField, locationField),
+    extraField,
+    imageManager.block,
+    ...hidden,
+    h('div', { class: 'modal-actions' },
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', { type: 'submit', class: 'btn primary' }, 'Save'),
+    ),
+  );
+
+  form.addEventListener('dragover', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'none';
+    }
+  });
+  form.addEventListener('drop', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  const m = openModal(h('div', {}, h('h3', {}, 'Edit ' + (s?.name || 'service')), form), { large: true });
+}
+
+// ============================ Landmarks manager ============================
+// Clicking "Explore Landmarks" in Other Services opens this — combines the
+// service page settings (title/description/images) with the management of the
+// landmarks list itself.
+async function openLandmarksManager(service) {
+  const landmarks = await api.landmarks();
+
+  // Two sections inside the modal:
+  //  1. Service page settings (the Landmarks page title/description/image)
+  //  2. List of landmarks, grouped by type, with edit/add/delete
+
+  let initialImages = [];
+  if (service?.image_urls) {
+    try { initialImages = JSON.parse(service.image_urls); } catch (_) {}
+  }
+  const imageManager = createImageManager(initialImages, 'Page header images');
+
+  const renderList = () => {
+    const sightseeing = landmarks.filter(l => l.type === 'sightseeing');
+    const relevant = landmarks.filter(l => l.type === 'relevant_services');
+
+    const group = (title, items, type) => h('div', { style: 'margin-top:18px;' },
+      h('div', { style: 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;' },
+        h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.8px;color:var(--accent);text-transform:uppercase;' }, title),
+        h('button', {
+          type: 'button', class: 'btn ghost sm',
+          onclick: () => openLandmarkItemModal(null, type, async () => {
+            const fresh = await api.landmarks();
+            landmarks.splice(0, landmarks.length, ...fresh);
+            listContainer.innerHTML = '';
+            listContainer.appendChild(renderList());
+          }),
+        }, '+ Add'),
+      ),
+      items.length
+        ? h('div', { class: 'card', style: 'padding:0;overflow:hidden;' },
+            ...items.map((l, i) =>
+              h('div', {
+                style: `display:flex;align-items:center;gap:14px;padding:10px 14px;cursor:pointer;${i > 0 ? 'border-top:1px solid var(--border);' : ''}`,
+                onclick: () => openLandmarkItemModal(l, l.type, async () => {
+                  const fresh = await api.landmarks();
+                  landmarks.splice(0, landmarks.length, ...fresh);
+                  listContainer.innerHTML = '';
+                  listContainer.appendChild(renderList());
+                }),
+              },
+                (() => {
+                  let firstImg = null;
+                  if (l.image_urls) {
+                    try { const u = JSON.parse(l.image_urls); if (u.length) firstImg = u[0]; } catch (_) {}
+                  }
+                  if (!firstImg) return h('div', { style: 'width:48px;height:48px;border-radius:8px;background:var(--bg);flex-shrink:0;' });
+                  const img = document.createElement('img');
+                  img.src = firstImg;
+                  img.style.cssText = 'width:48px;height:48px;object-fit:cover;border-radius:8px;flex-shrink:0;';
+                  return img;
+                })(),
+                h('div', { style: 'flex:1;min-width:0;' },
+                  h('div', { style: 'font-weight:600;font-size:14px;' }, l.name),
+                  h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' },
+                    [l.subtitle, l.distance].filter(Boolean).join(' · ') || '—'),
+                  l.type === 'relevant_services'
+                    ? h('div', { class: 'muted-text', style: 'font-size:11px;margin-top:2px;' },
+                        `${(l.locations || []).length} location(s)`)
+                    : null,
+                ),
+                h('button', {
+                  type: 'button', class: 'icon-btn danger',
+                  style: 'font-size:12px;',
+                  onclick: async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Delete "${l.name}"? This cannot be undone.`)) return;
+                    try {
+                      await api.deleteLandmark(l.id);
+                      const fresh = await api.landmarks();
+                      landmarks.splice(0, landmarks.length, ...fresh);
+                      listContainer.innerHTML = '';
+                      listContainer.appendChild(renderList());
+                      toast('Deleted');
+                    } catch (err) { toast(err.message, 'error'); }
+                  },
+                }, 'Delete'),
+              ),
+            ),
+          )
+        : h('div', { class: 'muted-text', style: 'padding:12px;font-size:13px;' }, `No ${title.toLowerCase()} yet.`),
+    );
+
+    return h('div', {},
+      group('Sightseeing', sightseeing, 'sightseeing'),
+      group('Relevant services', relevant, 'relevant_services'),
+    );
+  };
+
+  const listContainer = h('div', {});
+  listContainer.appendChild(renderList());
+
+  const pageForm = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    const urls = imageManager.getUrls();
+    fd.image_urls = urls.length ? JSON.stringify(urls) : null;
+    fd.subtitle = fd.subtitle || null;
+    fd.description = fd.description || null;
+    try {
+      await api.updateService(service.id, fd);
+      toast('Page saved');
+    } catch (err) { toast(err.message, 'error'); }
+  } },
+    h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.8px;color:var(--accent);text-transform:uppercase;margin-bottom:10px;' }, 'Landmarks page'),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Page title *'),
+        h('input', { name: 'name', value: service?.name || 'Explore Landmarks', required: true }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Header label'),
+        h('input', { name: 'subtitle', value: service?.subtitle || '', placeholder: 'e.g. Destination Guide' }),
+      ),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Description'),
+      h('textarea', { name: 'description', rows: 3 }, service?.description || ''),
+    ),
+    imageManager.block,
+    h('div', { style: 'display:flex;justify-content:flex-end;margin-top:8px;' },
+      h('button', { type: 'submit', class: 'btn ghost sm' }, 'Save page settings'),
+    ),
+  );
+
+  pageForm.addEventListener('dragover', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) { e.preventDefault(); e.dataTransfer.dropEffect = 'none'; }
+  });
+  pageForm.addEventListener('drop', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
+  });
+
+  const m = openModal(
+    h('div', {},
+      h('h3', {}, 'Manage Landmarks'),
+      pageForm,
+      h('hr', { style: 'border:none;border-top:1px solid var(--border);margin:20px 0;' }),
+      listContainer,
+      h('div', { class: 'modal-actions' },
+        h('button', { type: 'button', class: 'btn primary', onclick: () => { m.close(); setTab('content'); } }, 'Done'),
+      ),
+    ),
+    { large: true },
+  );
+}
+
+// Edit / create a single landmark. For relevant_services type, also manage
+// the inner list of locations.
+function openLandmarkItemModal(landmark, type, onSaved) {
+  const isEdit = !!landmark;
+  const t = type || landmark?.type || 'sightseeing';
+  const isRelevantServices = t === 'relevant_services';
+
+  let initialImages = [];
+  if (landmark?.image_urls) {
+    try { initialImages = JSON.parse(landmark.image_urls); } catch (_) {}
+  }
+  const imageManager = createImageManager(initialImages);
+
+  // ---- Locations sub-list (only for relevant_services) ----
+  const locations = landmark?.locations ? [...landmark.locations] : [];
+
+  const locContainer = h('div', { style: 'margin-top:8px;' });
+  function renderLocations() {
+    locContainer.innerHTML = '';
+    if (!locations.length) {
+      locContainer.appendChild(h('div', { class: 'muted-text', style: 'font-size:13px;padding:8px 0;' }, 'No locations yet.'));
+      return;
+    }
+    const list = h('div', { class: 'card', style: 'padding:0;overflow:hidden;' });
+    locations.forEach((loc, i) => {
+      list.appendChild(h('div', {
+        style: `display:flex;align-items:center;gap:10px;padding:10px 14px;${i > 0 ? 'border-top:1px solid var(--border);' : ''}`,
+      },
+        h('div', { style: 'flex:1;min-width:0;' },
+          h('div', { style: 'font-weight:600;font-size:14px;' }, loc.name),
+          h('div', { class: 'muted-text', style: 'font-size:12px;margin-top:2px;' },
+            [loc.address, loc.phone].filter(Boolean).join(' · ') || '—'),
+        ),
+        h('button', {
+          type: 'button', class: 'btn ghost sm', style: 'padding:4px 10px;font-size:12px;',
+          onclick: () => openLocationModal(loc, (updated) => {
+            const idx = locations.findIndex(x => x.id === loc.id);
+            if (idx >= 0) locations[idx] = updated;
+            renderLocations();
+          }),
+        }, 'Edit'),
+        h('button', {
+          type: 'button', class: 'icon-btn danger', style: 'padding:4px 10px;font-size:12px;',
+          onclick: async () => {
+            if (!confirm(`Remove "${loc.name}"?`)) return;
+            try {
+              if (loc.id) await api.deleteLandmarkLocation(loc.id);
+              const idx = locations.indexOf(loc);
+              if (idx >= 0) locations.splice(idx, 1);
+              renderLocations();
+              toast('Removed');
+            } catch (err) { toast(err.message, 'error'); }
+          },
+        }, 'Delete'),
+      ));
+    });
+    locContainer.appendChild(list);
+  }
+  renderLocations();
+
+  function openLocationModal(loc, onDone) {
+    const isLocEdit = !!loc?.id || (loc && loc.name !== undefined);
+    const form = h('form', { onsubmit: async (e) => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target).entries());
+      fd.address = fd.address || null;
+      fd.phone = fd.phone || null;
+      try {
+        if (loc?.id) {
+          await api.updateLandmarkLocation(loc.id, fd);
+          onDone({ ...loc, ...fd });
+        } else {
+          // Need the parent landmark id — only valid when editing an existing landmark
+          if (!landmark?.id) {
+            toast('Save the landmark first before adding locations.', 'error');
+            return;
+          }
+          fd.landmark_id = landmark.id;
+          const r = await api.createLandmarkLocation(fd);
+          locations.push({ id: r.id, ...fd });
+          renderLocations();
+        }
+        toast('Saved');
+        mLoc.close();
+      } catch (err) { toast(err.message, 'error'); }
+    } },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Name *'),
+        h('input', { name: 'name', value: loc?.name || '', required: true }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Address'),
+        h('input', { name: 'address', value: loc?.address || '' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Phone'),
+        h('input', { name: 'phone', value: loc?.phone || '' }),
+      ),
+      h('div', { class: 'modal-actions' },
+        h('button', { type: 'button', class: 'btn ghost', onclick: () => mLoc.close() }, 'Cancel'),
+        h('button', { type: 'submit', class: 'btn primary' }, loc?.id ? 'Save' : 'Add'),
+      ),
+    );
+    const mLoc = openModal(h('div', {}, h('h3', {}, loc?.id ? 'Edit location' : 'Add location'), form));
+  }
+
+  // ---- Main landmark form ----
+  const form = h('form', { onsubmit: async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+    fd.type = t;
+    fd.subtitle = fd.subtitle || null;
+    fd.description = fd.description || null;
+    fd.distance = fd.distance || null;
+    fd.address = fd.address || null;
+    fd.phone = fd.phone || null;
+    fd.website = fd.website || null;
+    const urls = imageManager.getUrls();
+    fd.image_urls = urls.length ? JSON.stringify(urls) : null;
+    try {
+      if (isEdit) {
+        await api.updateLandmark(landmark.id, fd);
+      } else {
+        await api.createLandmark(fd);
+      }
+      toast('Saved');
+      m.close();
+      onSaved && onSaved();
+    } catch (err) { toast(err.message, 'error'); }
+  } },
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Name *'),
+      h('input', { name: 'name', value: landmark?.name || '', required: true, placeholder: isRelevantServices ? 'e.g. Pharmacies' : 'e.g. Jeita Grotto' }),
+    ),
+    h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Subtitle'),
+        h('input', { name: 'subtitle', value: landmark?.subtitle || '', placeholder: 'Short tagline shown under the name' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Distance from hotel'),
+        h('input', { name: 'distance', value: landmark?.distance || '', placeholder: 'e.g. 5 km · Walking distance' }),
+      ),
+    ),
+    h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Description'),
+      h('textarea', { name: 'description', rows: 3 }, landmark?.description || ''),
+    ),
+    isRelevantServices ? null : h('div', { class: 'field-row' },
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Address'),
+        h('input', { name: 'address', value: landmark?.address || '' }),
+      ),
+      h('div', { class: 'field' },
+        h('label', { class: 'field-label' }, 'Phone'),
+        h('input', { name: 'phone', value: landmark?.phone || '' }),
+      ),
+    ),
+    isRelevantServices ? null : h('div', { class: 'field' },
+      h('label', { class: 'field-label' }, 'Website'),
+      h('input', { name: 'website', value: landmark?.website || '', placeholder: 'https://...' }),
+    ),
+    // For relevant_services, address/phone are per-location instead.
+    isRelevantServices ? h('input', { type: 'hidden', name: 'address', value: '' }) : null,
+    isRelevantServices ? h('input', { type: 'hidden', name: 'phone', value: '' }) : null,
+    isRelevantServices ? h('input', { type: 'hidden', name: 'website', value: '' }) : null,
+    imageManager.block,
+
+    // Locations sub-list (only for relevant_services)
+    isRelevantServices ? h('div', { style: 'margin-top:18px;' },
+      h('div', { style: 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;' },
+        h('div', { style: 'font-size:13px;font-weight:700;letter-spacing:0.6px;color:var(--text);text-transform:uppercase;' }, 'Locations'),
+        h('button', {
+          type: 'button', class: 'btn ghost sm',
+          onclick: () => {
+            if (!landmark?.id) {
+              toast('Save the landmark first before adding locations.', 'error');
+              return;
+            }
+            openLocationModal(null, () => {});
+          },
+        }, '+ Add location'),
+      ),
+      locContainer,
+    ) : null,
+
+    h('div', { class: 'modal-actions' },
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', { type: 'submit', class: 'btn primary' }, isEdit ? 'Save' : 'Create'),
+    ),
+  );
+
+  form.addEventListener('dragover', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) { e.preventDefault(); e.dataTransfer.dropEffect = 'none'; }
+  });
+  form.addEventListener('drop', (e) => {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types || !Array.from(types).includes('application/x-img-reorder')) return;
+    if (!imageManager.grid.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
+  });
+
+  const headerLabel = (isRelevantServices ? 'Relevant service' : 'Sightseeing') + (isEdit ? ' · Edit' : ' · New');
+  const m = openModal(h('div', {}, h('h3', {}, headerLabel), form), { large: true });
 }
 
 // --- Events

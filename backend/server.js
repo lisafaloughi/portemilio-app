@@ -104,6 +104,34 @@ api.get('/restaurants/:id', (req, res) => {
   res.json({ ...r, menu: items });
 });
 
+// Other Services (Front Desk, Heritage, Marina, etc) — admin-editable content.
+api.get('/services', (_, res) => {
+  res.json(db.prepare('SELECT * FROM services ORDER BY sort_order, name').all());
+});
+api.get('/services/:key', (req, res) => {
+  const r = /^\d+$/.test(req.params.key)
+    ? db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.key)
+    : db.prepare('SELECT * FROM services WHERE key = ?').get(req.params.key);
+  if (!r) return res.status(404).json({ error: 'Not found' });
+  res.json(r);
+});
+
+// Landmarks — sightseeing destinations and relevant services (pharmacies,
+// hospitals, etc) with nested locations.
+api.get('/landmarks', (_, res) => {
+  const rows = db.prepare('SELECT * FROM landmarks ORDER BY sort_order, name').all();
+  const getLocs = db.prepare('SELECT id, name, address, phone, sort_order FROM landmark_locations WHERE landmark_id = ? ORDER BY sort_order, name');
+  res.json(rows.map(r => ({ ...r, locations: getLocs.all(r.id) })));
+});
+api.get('/landmarks/:key', (req, res) => {
+  const r = /^\d+$/.test(req.params.key)
+    ? db.prepare('SELECT * FROM landmarks WHERE id = ?').get(req.params.key)
+    : db.prepare('SELECT * FROM landmarks WHERE key = ?').get(req.params.key);
+  if (!r) return res.status(404).json({ error: 'Not found' });
+  const locations = db.prepare('SELECT id, name, address, phone, sort_order FROM landmark_locations WHERE landmark_id = ? ORDER BY sort_order, name').all(r.id);
+  res.json({ ...r, locations });
+});
+
 api.get('/menu/plat-du-jour', (_, res) => {
   res.json(db.prepare(`
     SELECT * FROM plat_du_jour_items WHERE is_today = 1 ORDER BY title
@@ -269,9 +297,14 @@ admin.get('/facilities', (_, res) => res.json(db.prepare('SELECT * FROM faciliti
 admin.post('/facilities', (req, res) => {
   const f = req.body;
   const r = db.prepare(`
-    INSERT INTO facilities (key, name, category, description, hours, location, phone, image_url, bookable, price, extra_info)
-    VALUES (@key, @name, @category, @description, @hours, @location, @phone, @image_url, @bookable, @price, @extra_info)
-  `).run({ bookable: 0, ...f });
+    INSERT INTO facilities (key, name, category, description, hours, location, phone, image_url, bookable, price, extra_info, image_urls)
+    VALUES (@key, @name, @category, @description, @hours, @location, @phone, @image_url, @bookable, @price, @extra_info, @image_urls)
+  `).run({
+    bookable: 0, key: null, category: null, description: null,
+    hours: null, location: null, phone: null, image_url: null,
+    price: null, extra_info: null, image_urls: null,
+    ...f,
+  });
   res.json({ id: r.lastInsertRowid });
 });
 admin.put('/facilities/:id', (req, res) => {
@@ -282,13 +315,187 @@ admin.put('/facilities/:id', (req, res) => {
       description=COALESCE(@description,description), hours=COALESCE(@hours,hours),
       location=COALESCE(@location,location), phone=COALESCE(@phone,phone),
       image_url=COALESCE(@image_url,image_url), bookable=COALESCE(@bookable,bookable),
-      price=COALESCE(@price,price), extra_info=COALESCE(@extra_info,extra_info)
+      price=COALESCE(@price,price), extra_info=COALESCE(@extra_info,extra_info),
+      image_urls=@image_urls
     WHERE id=@id
-  `).run({ id: Number(req.params.id), key: null, name: null, category: null, description: null, hours: null, location: null, phone: null, image_url: null, bookable: null, price: null, extra_info: null, ...f });
+  `).run({ id: Number(req.params.id), key: null, name: null, category: null, description: null, hours: null, location: null, phone: null, image_url: null, bookable: null, price: null, extra_info: null, image_urls: null, ...f });
   res.json({ ok: true });
 });
 admin.delete('/facilities/:id', (req, res) => {
   db.prepare('DELETE FROM facilities WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Marina boats (guests with boats parked at the marina) ---
+admin.get('/marina-boats', (_, res) => {
+  res.json(db.prepare(`SELECT * FROM marina_boats ORDER BY slip_number IS NULL OR slip_number = '', slip_number, guest_name`).all());
+});
+admin.post('/marina-boats', (req, res) => {
+  const b = req.body || {};
+  if (!b.guest_name) return res.status(400).json({ error: 'Guest name is required' });
+  const r = db.prepare(`
+    INSERT INTO marina_boats (guest_name, boat_name, slip_number, status, phone, notes)
+    VALUES (@guest_name, @boat_name, @slip_number, @status, @phone, @notes)
+  `).run({
+    guest_name: b.guest_name,
+    boat_name: b.boat_name || null,
+    slip_number: b.slip_number || null,
+    status: b.status === 'at_sea' ? 'at_sea' : 'docked',
+    phone: b.phone || null,
+    notes: b.notes || null,
+  });
+  res.json({ id: r.lastInsertRowid });
+});
+admin.put('/marina-boats/:id', (req, res) => {
+  const b = req.body || {};
+  db.prepare(`
+    UPDATE marina_boats SET
+      guest_name=COALESCE(@guest_name, guest_name),
+      boat_name=@boat_name,
+      slip_number=@slip_number,
+      status=COALESCE(@status, status),
+      phone=@phone,
+      notes=@notes
+    WHERE id=@id
+  `).run({
+    id: Number(req.params.id),
+    guest_name: b.guest_name || null,
+    boat_name: b.boat_name == null ? null : b.boat_name,
+    slip_number: b.slip_number == null ? null : b.slip_number,
+    status: b.status === 'docked' || b.status === 'at_sea' ? b.status : null,
+    phone: b.phone == null ? null : b.phone,
+    notes: b.notes == null ? null : b.notes,
+  });
+  res.json({ ok: true });
+});
+admin.delete('/marina-boats/:id', (req, res) => {
+  db.prepare('DELETE FROM marina_boats WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Landmarks CRUD (admin) ---
+admin.get('/landmarks', (_, res) => {
+  const rows = db.prepare('SELECT * FROM landmarks ORDER BY sort_order, name').all();
+  const getLocs = db.prepare('SELECT id, name, address, phone, sort_order FROM landmark_locations WHERE landmark_id = ? ORDER BY sort_order, name');
+  res.json(rows.map(r => ({ ...r, locations: getLocs.all(r.id) })));
+});
+admin.post('/landmarks', (req, res) => {
+  const b = req.body || {};
+  if (!b.name) return res.status(400).json({ error: 'Name is required' });
+  const type = b.type === 'relevant_services' ? 'relevant_services' : 'sightseeing';
+  const key = b.key && b.key.trim()
+    ? b.key.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    : (b.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now();
+  try {
+    const r = db.prepare(`
+      INSERT INTO landmarks (key, type, name, subtitle, description, distance, address, phone, website, image_urls, sort_order)
+      VALUES (@key, @type, @name, @subtitle, @description, @distance, @address, @phone, @website, @image_urls, @sort_order)
+    `).run({
+      key, type, name: b.name,
+      subtitle: b.subtitle || null,
+      description: b.description || null,
+      distance: b.distance || null,
+      address: b.address || null,
+      phone: b.phone || null,
+      website: b.website || null,
+      image_urls: b.image_urls || null,
+      sort_order: b.sort_order || 0,
+    });
+    res.json({ id: r.lastInsertRowid });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+admin.put('/landmarks/:id', (req, res) => {
+  const b = req.body || {};
+  db.prepare(`
+    UPDATE landmarks SET
+      type=COALESCE(@type, type),
+      name=COALESCE(@name, name),
+      subtitle=@subtitle,
+      description=@description,
+      distance=@distance,
+      address=@address,
+      phone=@phone,
+      website=@website,
+      image_urls=@image_urls,
+      sort_order=COALESCE(@sort_order, sort_order)
+    WHERE id=@id
+  `).run({
+    id: Number(req.params.id),
+    type: b.type === 'sightseeing' || b.type === 'relevant_services' ? b.type : null,
+    name: b.name || null,
+    subtitle: b.subtitle == null ? null : b.subtitle,
+    description: b.description == null ? null : b.description,
+    distance: b.distance == null ? null : b.distance,
+    address: b.address == null ? null : b.address,
+    phone: b.phone == null ? null : b.phone,
+    website: b.website == null ? null : b.website,
+    image_urls: b.image_urls == null ? null : b.image_urls,
+    sort_order: b.sort_order == null ? null : b.sort_order,
+  });
+  res.json({ ok: true });
+});
+admin.delete('/landmarks/:id', (req, res) => {
+  db.prepare('DELETE FROM landmarks WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Locations within a landmark (only used by relevant_services landmarks)
+admin.post('/landmark-locations', (req, res) => {
+  const b = req.body || {};
+  if (!b.landmark_id || !b.name) return res.status(400).json({ error: 'landmark_id and name are required' });
+  const r = db.prepare(`
+    INSERT INTO landmark_locations (landmark_id, name, address, phone, sort_order)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(Number(b.landmark_id), b.name, b.address || null, b.phone || null, b.sort_order || 0);
+  res.json({ id: r.lastInsertRowid });
+});
+admin.put('/landmark-locations/:id', (req, res) => {
+  const b = req.body || {};
+  db.prepare(`
+    UPDATE landmark_locations SET
+      name=COALESCE(@name, name),
+      address=@address,
+      phone=@phone,
+      sort_order=COALESCE(@sort_order, sort_order)
+    WHERE id=@id
+  `).run({
+    id: Number(req.params.id),
+    name: b.name || null,
+    address: b.address == null ? null : b.address,
+    phone: b.phone == null ? null : b.phone,
+    sort_order: b.sort_order == null ? null : b.sort_order,
+  });
+  res.json({ ok: true });
+});
+admin.delete('/landmark-locations/:id', (req, res) => {
+  db.prepare('DELETE FROM landmark_locations WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// --- Services CRUD (Marina + Other Services) ---
+admin.get('/services', (_, res) => res.json(db.prepare('SELECT * FROM services ORDER BY sort_order, name').all()));
+admin.put('/services/:id', (req, res) => {
+  const b = req.body;
+  db.prepare(`
+    UPDATE services SET
+      name=COALESCE(@name,name),
+      subtitle=@subtitle,
+      description=@description,
+      phone=@phone,
+      email=@email,
+      hours=@hours,
+      location=@location,
+      extra_info=@extra_info,
+      image_urls=@image_urls
+    WHERE id=@id
+  `).run({
+    id: Number(req.params.id),
+    name: null, subtitle: null, description: null, phone: null, email: null,
+    hours: null, location: null, extra_info: null, image_urls: null,
+    ...b,
+  });
   res.json({ ok: true });
 });
 

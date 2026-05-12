@@ -24,7 +24,23 @@
       "Bash(cat /tmp/portemilio.log)",
       "Read(//private/tmp/**)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(r['name'], '→', len\\(json.loads\\(r['image_urls']\\)\\) if r.get\\('image_urls'\\) else 0, 'images'\\) for r in d]\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\\\\n\" http://localhost:4000/uploads/seeds/felinis1.jpg)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\\\\n\" http://localhost:4000/uploads/seeds/felinis1.jpg)",
+      "Bash(python3 -m json.tool)",
+      "Bash(sqlite3 /Users/lisafaloughi/Desktop/Portemilio/backend/portemilio.db \"SELECT id, key, name, category, hours, location, phone, price, extra_info, bookable FROM facilities;\")",
+      "Bash(node --check db.js)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('OK,', len\\(d\\), 'facilities. Has image_urls col:', 'image_urls' in d[0]\\)\")",
+      "Bash(mkdir -p /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/facilities)",
+      "Bash(cp pools.png wellness-area.jpg tennis.jpg kidsclub1.jpg kids-activities.jpg seaside-access.png front-desk.jpg /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/facilities/)",
+      "Bash(python3 -c ' *)",
+      "Bash(mkdir -p /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/services)",
+      "Bash(cp front-desk.jpg portemilio_vintage.jpg seaside-access.png housekeeping.jpg room-service.jpg pools.png transport-to-the-city.png marina.png celebrate1.jpg celebrate2.jpg celebrate3.jpg celebrate4.jpg celebrate5.jpg celebrate6.jpg jounieh-guide.jpg /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/services/)",
+      "Bash(curl -s http://localhost:4000/api/services)",
+      "Bash(curl -s -X GET http://localhost:4000/admin-api/marina-boats -H \"Authorization: Bearer noauth\" -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(mkdir -p /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/landmarks && cp /Users/lisafaloughi/Desktop/Portemilio/mobile/assets/guide/*.jpg /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/landmarks/ && ls /Users/lisafaloughi/Desktop/Portemilio/backend/public/uploads/seeds/landmarks/)",
+      "Bash(curl -s http://localhost:4000/api/landmarks)"
+    ],
+    "additionalDirectories": [
+      "/Users/lisafaloughi/Desktop/Portemilio/mobile/assets/guide"
     ]
   }
 }

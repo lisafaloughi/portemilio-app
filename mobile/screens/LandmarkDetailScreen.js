@@ -1,9 +1,9 @@
 import React from 'react';
 import VenueDetailPage from '../components/VenueDetailPage';
-import { landmarkById } from '../data/landmarks';
+import { useLandmark } from '../data/landmarks';
 
 export default function LandmarkDetailScreen({ navigation, route }) {
-  const landmark = landmarkById(route?.params?.id);
+  const landmark = useLandmark(route?.params?.id);
 
   if (!landmark) {
     return (
@@ -16,12 +16,16 @@ export default function LandmarkDetailScreen({ navigation, route }) {
     );
   }
 
+  const images = landmark.images && landmark.images.length
+    ? landmark.images
+    : [landmark.image];
+
   return (
     <VenueDetailPage
       navigation={navigation}
       title={landmark.name}
       subtitle={landmark.subtitle}
-      images={[landmark.image]}
+      images={images}
       description={landmark.description}
       highlights={landmark.bullets}
       address={landmark.address}

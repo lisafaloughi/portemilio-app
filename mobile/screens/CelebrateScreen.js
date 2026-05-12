@@ -14,10 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 import { EVENT_VENUES } from '../data/eventVenues';
+import { useService, serviceImages } from '../data/services';
 
 const HERO_HEIGHT = Dimensions.get('window').width;
-const PHONE = '+9619123466';
-const HERO_IMAGES = [
+const FALLBACK_PHONE = '+9619123466';
+const FALLBACK_IMAGES = [
   require('../assets/celebrate1.jpg'),
   require('../assets/celebrate2.jpg'),
   require('../assets/celebrate3.jpg'),
@@ -25,27 +26,37 @@ const HERO_IMAGES = [
   require('../assets/celebrate5.jpg'),
   require('../assets/celebrate6.jpg'),
 ];
+const FALLBACK_TITLE = 'Celebrate Together';
+const FALLBACK_SUBTITLE = 'Two venues. Endless reasons.';
+const FALLBACK_LEAD = "Whatever you're celebrating, we have a place for it.";
 
 const EVENTS = ['Weddings', 'Birthdays', 'Promposals', 'Private moments', 'And more...'];
 
 export default function CelebrateScreen({ navigation }) {
   const [heroIndex, setHeroIndex] = useState(0);
+  const s = useService('celebrate');
+  const title = s?.name || FALLBACK_TITLE;
+  const subtitle = s?.subtitle || FALLBACK_SUBTITLE;
+  const lead = s?.description || FALLBACK_LEAD;
+  const phone = s?.phone || FALLBACK_PHONE;
+  const apiImgs = serviceImages(s);
+  const heroImages = apiImgs.length ? apiImgs : FALLBACK_IMAGES;
 
   useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
+    if (heroImages.length <= 1) return;
     const id = setInterval(() => {
-      setHeroIndex(prev => (prev + 1) % HERO_IMAGES.length);
+      setHeroIndex(prev => (prev + 1) % heroImages.length);
     }, 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [heroImages.length]);
 
-  const callUs = () => Linking.openURL(`tel:${PHONE.replace(/\s+/g, '')}`);
+  const callUs = () => Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`);
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
         <View style={styles.hero}>
-          {HERO_IMAGES.map((src, i) => (
+          {heroImages.map((src, i) => (
             <View
               key={i}
               style={[StyleSheet.absoluteFill, { opacity: i === heroIndex ? 1 : 0 }]}
@@ -64,15 +75,13 @@ export default function CelebrateScreen({ navigation }) {
             </Pressable>
           </SafeAreaView>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>Celebrate Together</Text>
-            <Text style={styles.heroSubtitle}>Two venues. Endless reasons.</Text>
+            <Text style={styles.heroTitle}>{title}</Text>
+            {subtitle ? <Text style={styles.heroSubtitle}>{subtitle}</Text> : null}
           </View>
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.lead}>
-            Whatever you're celebrating, we have a place for it.
-          </Text>
+          <Text style={styles.lead}>{lead}</Text>
 
           <Text style={styles.sectionLabel}>VENUES</Text>
           {EVENT_VENUES.map(v => (

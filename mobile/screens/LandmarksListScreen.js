@@ -10,7 +10,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, radius } from '../theme';
-import { LANDMARKS } from '../data/landmarks';
+import { useLandmarks } from '../data/landmarks';
+import { useService } from '../data/services';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -26,13 +27,16 @@ const TYPE_LABEL = {
 export default function LandmarksListScreen({ navigation, route }) {
   const initialFilter = route?.params?.filter || 'all';
   const [filter, setFilter] = useState(initialFilter);
+  const s = useService('landmarks');
+  const { items: all } = useLandmarks();
+  const heading = s?.subtitle || s?.name || 'Destination Guide';
 
   const items = useMemo(
     () =>
       filter === 'all'
-        ? LANDMARKS
-        : LANDMARKS.filter(l => l.type === filter),
-    [filter]
+        ? all
+        : all.filter(l => l.type === filter),
+    [filter, all]
   );
 
   return (
@@ -41,7 +45,7 @@ export default function LandmarksListScreen({ navigation, route }) {
         <Pressable style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Destination Guide</Text>
+        <Text style={styles.title}>{heading}</Text>
         <View style={{ width: 38 }} />
       </View>
 
