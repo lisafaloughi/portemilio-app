@@ -253,6 +253,27 @@ if (!hasColumn('notifications', 'recipient_ids')) {
 if (!hasColumn('notifications', 'recipient_names')) {
   db.exec(`ALTER TABLE notifications ADD COLUMN recipient_names TEXT`);
 }
+if (!hasColumn('notifications', 'is_system')) {
+  // 1 = inserted by an automated flow (booking reminders, approval welcome, booking
+  // confirmations). 0 = sent manually by an admin. The admin "Recent" table filters
+  // on this so automatic system messages don't clutter the manual-send history.
+  db.exec(`ALTER TABLE notifications ADD COLUMN is_system INTEGER DEFAULT 0`);
+}
+// Idempotent backfill: any rows whose title matches a known auto pattern get tagged
+// as system. Runs every startup so legacy rows from older code paths are caught too.
+db.prepare(`
+  UPDATE notifications SET is_system = 1
+  WHERE (is_system IS NULL OR is_system = 0)
+    AND (
+      title LIKE 'Reminder:%'
+      OR title LIKE 'Court reminder%'
+      OR title LIKE 'Booking confirmed%'
+      OR title LIKE 'Booking cancelled%'
+      OR title = 'Your court is ready'
+      OR title = 'Your booking is ready'
+      OR title = 'Welcome to Portemilio'
+    )
+`).run();
 if (!hasColumn('bookings', 'reminder_sent')) {
   db.exec(`ALTER TABLE bookings ADD COLUMN reminder_sent INTEGER DEFAULT 0`);
 }

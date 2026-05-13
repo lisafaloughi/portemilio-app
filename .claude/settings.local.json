@@ -25,7 +25,8 @@
       "Bash(curl -s http://localhost:4000/api/facilities/pools)",
       "Bash(grep -n \"function openServiceModal\\\\|imageManager.block,\\\\s*$\\\\|Save'$\" /Users/lisafaloughi/Desktop/Portemilio/backend/public/app.js)",
       "Bash(curl -s http://localhost:4000/api/services/marina)",
-      "Bash(curl -s http://localhost:4000/api/services/maritime_academy)"
+      "Bash(curl -s http://localhost:4000/api/services/maritime_academy)",
+      "Bash(sqlite3 portemilio.db \"SELECT COUNT\\(*\\) AS total FROM notifications; SELECT id, datetime\\(created_at\\) AS created_utc, title, audience FROM notifications ORDER BY created_at DESC LIMIT 20; SELECT datetime\\('now'\\) AS server_now;\")"
     ]
   }
 }

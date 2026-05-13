@@ -210,7 +210,10 @@ export default function TennisScreen({ navigation }) {
 
   const isBlocked = (day, hour) => {
     const slot = new Date(day); slot.setHours(hour, 0, 0, 0);
-    if (slot < new Date()) return true;
+    // Only block hours that have fully ended. A slot whose hour is still ongoing
+    // (e.g. 1:00–2:00 at 1:05) stays bookable for guests too.
+    const slotEnd = new Date(slot.getTime() + 60 * 60 * 1000);
+    if (slotEnd <= new Date()) return true;
     const key = `${day.toDateString()}|${hour}`;
     return !!indexedRef.current[key];
   };
@@ -325,9 +328,13 @@ export default function TennisScreen({ navigation }) {
     let hh = OPEN_HOUR;
     while (hh < CLOSE_HOUR) {
       const slot = new Date(d); slot.setHours(hh, 0, 0, 0);
-      const isPast = slot < new Date();
+      // A slot is only "past" after its full hour has elapsed — so a live booking
+      // remains visible (and a live free slot remains selectable) until end of hour.
+      const slotEnd = new Date(slot.getTime() + 60 * 60 * 1000);
+      const isPast = slotEnd <= new Date();
       const key = `${d.toDateString()}|${hh}`;
-      const b = !isPast ? indexed[key] : null;
+      // Show ongoing bookings across their full duration, even past hours.
+      const b = indexed[key];
 
       if (b) {
         // Extend span while consecutive hours belong to the same booking.

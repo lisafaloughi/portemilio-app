@@ -296,6 +296,16 @@ main.main {
   font-size: 12px;
   color: var(--subtle);
 }
+.stat-tile .status-badge {
+  margin: 14px auto 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stat-tile .status-badge.ok { color: var(--success); }
+.stat-tile .status-badge.empty { color: var(--danger); }
 
 /* Deliveries section labels */
 .deliveries-section-label {
@@ -436,6 +446,19 @@ main.main {
 
 /* Tables with stable column widths — prevent header shift when content varies */
 .table.fixed { table-layout: fixed; }
+
+/* Fixed-height scroll container so long lists don't push the page down endlessly */
+.table-scroll {
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+.table-scroll .table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
 
 /* Status pills */
 .pill {
@@ -621,6 +644,7 @@ textarea:focus::placeholder {
 .cal-grid {
   display: grid;
   grid-template-columns: 70px repeat(7, 1fr);
+  grid-auto-rows: 44px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -631,7 +655,6 @@ textarea:focus::placeholder {
   border-right: 1px solid var(--border-soft);
   border-bottom: 1px solid var(--border-soft);
   padding: 6px;
-  min-height: 44px;
 }
 .cal-grid .cal-head {
   background: var(--bg-soft);
@@ -667,6 +690,12 @@ textarea:focus::placeholder {
 .cal-grid .cal-cell.booked {
   background: #1e4d6b;
   color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
 }
 .cal-grid .cal-cell.booked .b-name {
   font-size: 11px;
@@ -674,6 +703,7 @@ textarea:focus::placeholder {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 .cal-grid .cal-cell.booked .b-meta {
   font-size: 10px;
@@ -681,7 +711,48 @@ textarea:focus::placeholder {
 }
 .cal-grid .cal-cell.pending { background: #f8e7c1; color: #8c6620; }
 .cal-grid .cal-cell.cancelled { background: #f4f0e7; color: var(--muted); text-decoration: line-through; }
-.cal-grid .cal-cell.today { box-shadow: inset 0 0 0 2px var(--gold); }
+/* Past slots (today's earlier hours): filled with a slightly darker tone, not clickable.
+   Mirrors the client app's tennis screen — no colored border, just a darker fill. */
+.cal-grid .cal-cell.past {
+  background: #f4f0e7;
+  cursor: default;
+}
+.cal-grid .cal-cell.past:hover { background: #f4f0e7; }
+
+/* Drag-selection highlight — applied to each free slot while the user is dragging.
+   Matches the client app's gold tint so the selected range is obvious at a glance. */
+.cal-grid .cal-cell.selecting,
+.cal-grid .cal-cell.selecting:hover {
+  background: var(--gold-soft);
+  cursor: grabbing;
+}
+.cal-grid { user-select: none; -webkit-user-select: none; }
+
+/* Court selector — matches the segmented toggle on the client app's tennis screen. */
+.court-toggle {
+  display: inline-flex;
+  background: var(--bg-soft);
+  padding: 4px;
+  border-radius: 999px;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.court-toggle-btn {
+  border: 0;
+  background: none;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  border-radius: 999px;
+  font-family: inherit;
+}
+.court-toggle-btn.active {
+  background: var(--navy);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(30, 77, 107, 0.2);
+}
 
 /* ===== Sub-tabs ===== */
 .subtabs {

@@ -27,6 +27,7 @@ const state = {
   // ui filters
   userFilter: { status: 'all', q: '', room: '', chalet: '' },
   bookingsTab: 'tennis', // 'tennis' | 'all'
+  selectedCourt: 1, // 1 | 2 — tennis court selector for calendar view
   contentTab: 'restaurants', // 'restaurants' | 'menu' | 'facilities' | 'events'
   notifAudience: 'all',
   notifTargets: new Set(),
@@ -124,7 +125,6 @@ const api = {
   // notifications
   notifications: () => call(`${ADMIN}/notifications`),
   sendNotification: (b) => call(`${ADMIN}/notifications`, { method: 'POST', body: b }),
-  deleteNotification: (id) => call(`${ADMIN}/notifications/${id}`, { method: 'DELETE' }),
   // settings
   settings: () => call(`${ADMIN}/settings`),
   updateSetting: (key, value) => call(`${ADMIN}/settings/${key}`, { method: 'PUT', body: { value } }),
@@ -381,15 +381,26 @@ async function renderDashboard() {
     );
   };
 
+  const platSelected = (d.plat_du_jour_count || 0) > 0;
+  const platTile = h('div',
+    { class: 'stat-tile linkable' + (platSelected ? '' : ' alert'), onclick: () => setTab('platdujour') },
+    h('div', { class: 'label' }, 'Plat du Jour'),
+    h('div', {
+      class: 'status-badge ' + (platSelected ? 'ok' : 'empty'),
+      html: platSelected
+        ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4 4 10-10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2"/><path d="M12 7.5v5.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1.1" fill="currentColor"/></svg>',
+    }),
+    h('div', { class: 'hint' }, platSelected ? "Today's dish is set" : "Pick today's dish"),
+  );
   body.appendChild(h('div', { class: 'stat-grid' },
     tile('Pending approvals', d.users_pending, 'Awaiting verification', d.users_pending > 0, 'approvals'),
     tile('Pending deliveries', d.deliveries_pending, 'New orders', d.deliveries_pending > 0, 'deliveries'),
     tile('Pending bookings', d.bookings_pending, '', d.bookings_pending > 0, 'bookings'),
     tile('Bookings today', d.bookings_today, 'Confirmed activity', false, 'bookings'),
     tile('Total guests', d.users_total, '', false, 'users'),
-    tile('Plat du Jour', d.plat_du_jour_count, 'Items featured today', false, 'platdujour'),
+    platTile,
     tile("Today's Activities & Events", d.events_today, 'Scheduled today', false, 'today'),
-    tile('Send Notifications', d.notifications_total, 'Total sent', false, 'notifications'),
   ));
 }
 
@@ -704,6 +715,11 @@ function startOfWeek(d) {
   return x;
 }
 
+const TENNIS_COURTS = [
+  { id: 1, label: 'Court 1', resourceName: 'Tennis Court 1' },
+  { id: 2, label: 'Court 2', resourceName: 'Tennis Court 2' },
+];
+
 async function renderTennisCalendar(body) {
   if (!state.weekStart) state.weekStart = startOfWeek(new Date());
 
@@ -715,6 +731,22 @@ async function renderTennisCalendar(body) {
 
   const monthLabel = `${weekStart.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${(() => { const e = new Date(weekStart); e.setDate(weekStart.getDate() + 6); return e.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }); })()}`;
 
+  // Court toggle — match the client app's switch between Court 1 / Court 2.
+  const courtToggle = h('div', { class: 'court-toggle' },
+    ...TENNIS_COURTS.map(c => h('button', {
+      class: 'court-toggle-btn' + (state.selectedCourt === c.id ? ' active' : ''),
+      onclick: () => { state.selectedCourt = c.id; setTab('bookings'); },
+    }, c.label)),
+  );
+  body.appendChild(courtToggle);
+
+  const selectedCourtName = TENNIS_COURTS[state.selectedCourt - 1].resourceName;
+  // Filter to the bookings shown on this court (resource_name match; legacy bookings with no
+  // resource_name appear on both courts so they're never hidden by accident).
+  const courtBookings = bookings.filter(b =>
+    !b.resource_name || b.resource_name === selectedCourtName
+  );
+
   const toolbar = h('div', { class: 'calendar-toolbar' },
     h('div', { class: 'row-flex' },
       h('button', { class: 'btn ghost sm', onclick: () => { state.weekStart = new Date(state.weekStart); state.weekStart.setDate(state.weekStart.getDate() - 7); setTab('bookings'); } }, '←'),
@@ -722,7 +754,7 @@ async function renderTennisCalendar(body) {
       h('button', { class: 'btn ghost sm', onclick: () => { state.weekStart = new Date(state.weekStart); state.weekStart.setDate(state.weekStart.getDate() + 7); setTab('bookings'); } }, '→'),
       h('div', { class: 'week-label', style: 'margin-left: 8px;' }, monthLabel),
     ),
-    h('div', { class: 'muted-text' }, `${bookings.length} booking${bookings.length === 1 ? '' : 's'} this week`),
+    h('div', { class: 'muted-text' }, `${courtBookings.length} booking${courtBookings.length === 1 ? '' : 's'} this week`),
   );
   body.appendChild(toolbar);
 
@@ -730,66 +762,183 @@ async function renderTennisCalendar(body) {
   const HOURS = [];
   for (let hh = 8; hh <= 21; hh++) HOURS.push(hh);
 
-  // Index bookings by day-hour key
+  const now = new Date();
+
+  // Index every hour a booking covers (not just its start hour) so multi-hour bookings
+  // block their full range. Bookings whose end has fully passed are skipped — anything
+  // still active (live now) is kept so its full span renders in the grid.
   const indexed = {};
-  for (const b of bookings) {
-    if (b.status === 'cancelled') continue;
+  for (const b of courtBookings) {
+    if (b.status === 'cancelled' || b.status === 'completed') continue;
     const d = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z');
-    const key = `${d.toDateString()}|${d.getHours()}`;
-    (indexed[key] = indexed[key] || []).push(b);
+    const end = b.end_time
+      ? new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z')
+      : new Date(d.getTime() + 60 * 60 * 1000);
+    if (end <= now) continue;
+    const startHour = d.getHours();
+    let endHour = end.getHours();
+    // A 10:00–13:00 booking covers hours 10, 11, 12 (the 13:00 slot is the boundary, not used).
+    if (end.getMinutes() === 0 && endHour > startHour) endHour -= 1;
+    const dayStr = d.toDateString();
+    for (let hh = startHour; hh <= endHour; hh++) {
+      indexed[`${dayStr}|${hh}`] = b;
+    }
   }
 
   const grid = h('div', { class: 'cal-grid' });
-  // Header row
-  grid.append(h('div', { class: 'cal-head' }, ''));
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
     days.push(d);
-    const isToday = d.getTime() === today.getTime();
-    grid.append(h('div', { class: 'cal-head' + (isToday ? '' : '') },
+  }
+
+  // Header row (grid row 1): empty top-left cell + one cell per weekday.
+  grid.append(h('div', { class: 'cal-head', style: 'grid-column: 1; grid-row: 1;' }, ''));
+  days.forEach((d, i) => {
+    grid.append(h('div', { class: 'cal-head', style: `grid-column: ${i + 2}; grid-row: 1;` },
       h('div', {}, d.toLocaleDateString(undefined, { weekday: 'short' })),
       h('div', { class: 'dow-num' }, String(d.getDate())),
     ));
-  }
-  // Hour rows
-  for (const hh of HOURS) {
-    grid.append(h('div', { class: 'cal-time' }, `${hh}:00`));
-    for (const d of days) {
+  });
+
+  // Time labels (column 1, rows 2..N): one label per hour.
+  HOURS.forEach((hh, rowIdx) => {
+    grid.append(h('div', { class: 'cal-time', style: `grid-column: 1; grid-row: ${rowIdx + 2};` }, `${hh}:00`));
+  });
+
+  // ── Click-and-drag selection across consecutive free hours, like the client app.
+  // The drag state lives in this render's closure; selectableCells keeps a handle on
+  // each free cell DOM node so we can toggle the .selecting class without re-rendering.
+  const selectableCells = {};
+  let drag = null; // { day: Date, startHour: number, endHour: number }
+
+  const slotBlocked = (day, hh) => {
+    const slotDate = new Date(day); slotDate.setHours(hh, 0, 0, 0);
+    // Only fully-ended hours are unselectable. The currently-live hour stays bookable
+    // so the admin can book a guest mid-slot (the server fires "Your court is ready").
+    const slotEnd = new Date(slotDate.getTime() + 60 * 60 * 1000);
+    if (slotEnd <= now) return true;
+    return !!indexed[`${day.toDateString()}|${hh}`];
+  };
+
+  const paintSelection = () => {
+    for (const el of Object.values(selectableCells)) el.classList.remove('selecting');
+    if (!drag) return;
+    for (let hh = drag.startHour; hh <= drag.endHour; hh++) {
+      const el = selectableCells[`${drag.day.toDateString()}|${hh}`];
+      if (el) el.classList.add('selecting');
+    }
+  };
+
+  const onDragMove = (e) => {
+    if (!drag) return;
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    if (!target) return;
+    const cell = target.closest('.cal-cell');
+    if (!cell || !cell.dataset.day) return; // only free cells carry data-day
+    if (cell.dataset.day !== drag.day.toDateString()) return; // stay within the start day
+    const hr = Number(cell.dataset.hour);
+    let newEnd = Math.max(drag.startHour, hr);
+    // Cap at the first blocked slot between start and target (matches client app).
+    for (let hh = drag.startHour + 1; hh <= newEnd; hh++) {
+      if (slotBlocked(drag.day, hh)) { newEnd = hh - 1; break; }
+    }
+    if (newEnd !== drag.endHour) {
+      drag.endHour = newEnd;
+      paintSelection();
+    }
+  };
+
+  const onDragEnd = () => {
+    if (!drag) return;
+    const sel = drag;
+    drag = null;
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+    const startTime = new Date(sel.day); startTime.setHours(sel.startHour, 0, 0, 0);
+    const hours = sel.endHour - sel.startHour + 1;
+    // Leave the highlights in place while the confirm modal is open — they're cleared
+    // when openCreateTennisModal calls setTab('bookings') on confirm, or by Cancel below.
+    openCreateTennisModal(startTime, selectedCourtName, hours, () => {
+      for (const el of Object.values(selectableCells)) el.classList.remove('selecting');
+    });
+  };
+
+  // Render each day column independently so we can merge consecutive booked hours of the
+  // same booking into one cell via `grid-row: span N` — matches the client app's look.
+  days.forEach((d, colIdx) => {
+    const gridCol = colIdx + 2;
+    const dayStr = d.toDateString();
+    let rowIdx = 0;
+    while (rowIdx < HOURS.length) {
+      const hh = HOURS[rowIdx];
+      const gridRow = rowIdx + 2;
       const slot = new Date(d); slot.setHours(hh, 0, 0, 0);
-      const key = `${d.toDateString()}|${hh}`;
-      const list = indexed[key] || [];
-      const isToday = d.toDateString() === today.toDateString();
-      if (list.length) {
-        const b = list[0];
-        const cls = `cal-cell booked ${b.status === 'pending' ? 'pending' : ''} ${isToday ? 'today' : ''}`;
+      // Only treat a slot as "past" once its hour has fully elapsed. The currently-live
+      // hour stays selectable so the admin can book mid-slot.
+      const slotEnd = new Date(slot.getTime() + 60 * 60 * 1000);
+      const isPast = slotEnd <= now;
+      // Show ongoing bookings across their full duration — even hours already in the
+      // past — so the admin can still see and cancel them while they're live.
+      const b = indexed[`${dayStr}|${hh}`];
+
+      if (b) {
+        // Extend the span across consecutive hours owned by the same booking.
+        let span = 1;
+        while (rowIdx + span < HOURS.length) {
+          const nextHour = HOURS[rowIdx + span];
+          if (indexed[`${dayStr}|${nextHour}`] !== b) break;
+          span++;
+        }
+        const cls = `cal-cell booked ${b.status === 'pending' ? 'pending' : ''}`;
         grid.append(h('div', {
           class: cls,
+          style: `grid-column: ${gridCol}; grid-row: ${gridRow} / span ${span};`,
           onclick: () => openBookingDetail(b),
         },
           h('div', { class: 'b-name' }, b.user_name),
           h('div', { class: 'b-meta' }, b.resource_name || 'Tennis'),
         ));
+        rowIdx += span;
+      } else if (isPast) {
+        grid.append(h('div', { class: 'cal-cell past', style: `grid-column: ${gridCol}; grid-row: ${gridRow};` }));
+        rowIdx++;
       } else {
-        grid.append(h('div', {
-          class: 'cal-cell' + (isToday ? ' today' : ''),
-          onclick: () => openCreateTennisModal(slot),
-        }));
+        const cell = h('div', {
+          class: 'cal-cell',
+          'data-day': dayStr,
+          'data-hour': String(hh),
+          style: `grid-column: ${gridCol}; grid-row: ${gridRow};`,
+          onmousedown: (e) => {
+            // Left button only; prevent text selection during drag.
+            if (e.button !== 0) return;
+            e.preventDefault();
+            drag = { day: d, startHour: hh, endHour: hh };
+            paintSelection();
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', onDragEnd);
+          },
+        });
+        selectableCells[`${dayStr}|${hh}`] = cell;
+        grid.append(cell);
+        rowIdx++;
       }
     }
-  }
+  });
   body.appendChild(grid);
 
   body.appendChild(h('div', { style: 'margin-top: 12px; font-size: 12px; color: var(--subtle);' },
-    'Click any empty slot to book it on behalf of a guest. Click a booking to manage it.',
+    'Click a free slot for one hour, or click and drag across slots to book multiple hours. Click a booking to manage it.',
   ));
 }
 
-async function openCreateTennisModal(start) {
+async function openCreateTennisModal(start, defaultCourtName, hours = 1, onCancel) {
   const users = state.users.length ? state.users : await api.users();
   state.users = users;
-  const end = new Date(start); end.setHours(start.getHours() + 1);
+  const hoursCount = Math.max(1, hours | 0);
+  const end = new Date(start); end.setHours(start.getHours() + hoursCount);
+  const courtName = defaultCourtName || TENNIS_COURTS[(state.selectedCourt || 1) - 1].resourceName;
 
   const form = h('form', { onsubmit: async (e) => {
     e.preventDefault();
@@ -797,7 +946,7 @@ async function openCreateTennisModal(start) {
     const body = {
       user_id: Number(fd.get('user_id')),
       resource_type: 'tennis',
-      resource_name: fd.get('resource_name') || 'Tennis court',
+      resource_name: fd.get('resource_name') || courtName,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       party_size: Number(fd.get('party_size')) || 1,
@@ -819,18 +968,19 @@ async function openCreateTennisModal(start) {
         return sel;
       })(),
     ),
-    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Court'), h('input', { name: 'resource_name', placeholder: 'Tennis court', value: 'Tennis court' })),
+    h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Court'), h('input', { name: 'resource_name', placeholder: courtName, value: courtName })),
     h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Players'), h('input', { type: 'number', name: 'party_size', min: 1, max: 4, value: 2 })),
     h('div', { class: 'field' }, h('label', { class: 'field-label' }, 'Notes'), h('textarea', { name: 'notes' })),
     h('div', { class: 'modal-actions' },
-      h('button', { type: 'button', class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => { if (onCancel) onCancel(); m.close(); } }, 'Cancel'),
       h('button', { type: 'submit', class: 'btn primary' }, 'Confirm booking'),
     ),
   );
+  const dayLabel = start.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const rangeLabel = `${start.getHours()}:00 – ${end.getHours()}:00 · ${hoursCount} hour${hoursCount > 1 ? 's' : ''}`;
   const m = openModal(h('div', {},
-    h('h3', {}, 'Book a court'),
-    h('p', { class: 'muted-text', style: 'margin: -8px 0 14px;' },
-      `${start.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} · ${start.getHours()}:00 – ${end.getHours()}:00`),
+    h('h3', {}, hoursCount > 1 ? 'Book these slots' : 'Book a court'),
+    h('p', { class: 'muted-text', style: 'margin: -8px 0 14px;' }, `${dayLabel} · ${rangeLabel}`),
     form,
   ));
 }
@@ -847,19 +997,28 @@ function openBookingDetail(b) {
   row('Status', pill(b.status));
   row('Notes', b.notes);
 
+  const start = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z');
+  // A booking is "past" only once it has fully finished — based on end_time.
+  // While the slot is live (between start and end), it's still cancellable.
+  const end = b.end_time
+    ? new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z')
+    : new Date(start.getTime() + 60 * 60 * 1000);
+  const isPast = end <= new Date();
+  const cancellable = b.status !== 'cancelled' && b.status !== 'completed' && !isPast;
+
   const m = openModal(h('div', {},
     h('h3', {}, 'Booking'),
     h('div', { class: 'card', style: 'background: var(--bg-soft);' }, dl),
     h('div', { class: 'modal-actions' },
       h('button', { class: 'btn ghost', onclick: () => m.close() }, 'Close'),
-      b.status !== 'confirmed' ? h('button', {
+      b.status !== 'confirmed' && !isPast ? h('button', {
         class: 'btn success', onclick: async () => {
           try { await api.setBookingStatus(b.id, 'confirmed'); toast('Confirmed'); m.close(); setTab('bookings'); } catch (e) { toast(e.message, 'error'); }
         },
       }, 'Confirm') : null,
-      b.status !== 'cancelled' ? h('button', {
+      cancellable ? h('button', {
         class: 'btn danger', onclick: async () => {
-          if (!confirm('Cancel this booking?')) return;
+          if (!confirm('Are you sure you want to cancel this booking? The guest will be notified about the cancellation.')) return;
           try { await api.setBookingStatus(b.id, 'cancelled'); toast('Cancelled'); m.close(); setTab('bookings'); } catch (e) { toast(e.message, 'error'); }
         },
       }, 'Cancel') : null,
@@ -868,7 +1027,14 @@ function openBookingDetail(b) {
 }
 
 async function renderAllBookings(body) {
-  const bookings = await api.bookings();
+  const all = await api.bookings();
+  // Hide bookings older than 7 days — keeps the admin view focused on recent + upcoming.
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const bookings = all.filter(b => {
+    const start = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z');
+    return start >= cutoff;
+  });
   state.bookings = bookings;
   if (!bookings.length) {
     body.appendChild(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'No bookings yet.')));
@@ -881,6 +1047,12 @@ async function renderAllBookings(body) {
   )));
   const tb = h('tbody');
   for (const b of bookings) {
+    const start = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z');
+    const end = b.end_time
+      ? new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z')
+      : new Date(start.getTime() + 60 * 60 * 1000);
+    const isPast = end <= now;
+    const cancellable = b.status !== 'cancelled' && b.status !== 'completed' && !isPast;
     tb.append(h('tr', {},
       h('td', {}, fmtDateTime(b.start_time)),
       h('td', {}, b.resource_name || b.resource_type),
@@ -890,10 +1062,10 @@ async function renderAllBookings(body) {
       h('td', { class: 'right' },
         h('div', { class: 'row-actions', style: 'justify-content: flex-end;' },
           h('button', { class: 'icon-btn', onclick: () => openBookingDetail(b) }, 'View'),
-          b.status !== 'cancelled' ? h('button', {
+          cancellable ? h('button', {
             class: 'icon-btn danger',
             onclick: async () => {
-              if (!confirm('Cancel this booking?')) return;
+              if (!confirm('Are you sure you want to cancel this booking? The guest will be notified about the cancellation.')) return;
               try { await api.setBookingStatus(b.id, 'cancelled'); toast('Cancelled'); setTab('bookings'); } catch (e) { toast(e.message, 'error'); }
             },
           }, 'Cancel') : null,
@@ -3838,46 +4010,74 @@ async function renderNotifications() {
 
   // ----- History -----
   const hist = h('div', { class: 'card' });
-  hist.append(h('h3', {}, 'Recent'));
+  hist.append(h('h3', {}, 'Recent (last 7 days)'));
   if (!history.length) {
-    hist.append(h('div', { class: 'empty' }, 'No notifications sent yet.'));
+    hist.append(h('div', { class: 'empty' }, 'No notifications sent in the last 7 days.'));
   } else {
     const t = h('table', { class: 'table' });
     t.append(h('thead', {}, h('tr', {},
-      h('th', {}, 'Sent'), h('th', {}, 'Title'), h('th', {}, 'Body'),
-      h('th', {}, 'Audience'), h('th', { class: 'right' }, ''),
+      h('th', {}, 'Sent'), h('th', {}, 'Title'), h('th', {}, 'Body'), h('th', {}, 'Audience'),
     )));
     const tb = h('tbody');
     for (const n of history) {
-      // For targeted rows, show "Specific (Name1, Name2, …)" — the names list lives in recipient_names.
-      let audienceLabel;
-      if (n.audience === 'targeted') {
-        const names = n.recipient_names ? ` (${n.recipient_names})` : '';
-        audienceLabel = `Specific${names}`;
-      } else if (n.audience === 'registered') {
-        audienceLabel = 'Registered guests';
-      } else if (n.audience === 'all' || !n.audience) {
-        audienceLabel = n.user_id ? `User #${n.user_id}` : 'Everyone';
-      } else {
-        audienceLabel = n.audience;
-      }
-      tb.append(h('tr', {},
+      const audienceLabel = formatNotificationAudience(n);
+      tb.append(h('tr', { style: 'cursor: pointer;', onclick: () => openNotificationDetail(n) },
         h('td', { class: 'muted-text', style: 'white-space: nowrap;' }, fmtDateTime(n.created_at)),
         h('td', { style: 'font-weight: 600;' }, n.title),
-        h('td', {}, h('div', { style: 'max-width: 360px; white-space: normal;' }, n.body || '—')),
-        h('td', {}, h('div', { style: 'max-width: 280px; white-space: normal;' }, audienceLabel)),
-        h('td', { class: 'right' },
-          h('button', { class: 'icon-btn danger', onclick: async () => {
-            if (!confirm('Remove from history?')) return;
-            try { await api.deleteNotification(n.id); toast('Removed'); setTab('notifications'); } catch (e) { toast(e.message, 'error'); }
-          } }, 'Delete'),
-        ),
+        h('td', {}, h('div', { class: 'truncate-2' }, n.body || '—')),
+        h('td', {}, h('div', { class: 'truncate-2' }, audienceLabel)),
       ));
     }
     t.appendChild(tb);
-    hist.append(t);
+    hist.append(h('div', { class: 'table-scroll' }, t));
   }
   body.appendChild(hist);
+}
+
+function formatNotificationAudience(n) {
+  if (n.audience === 'targeted') {
+    const count = (n.recipient_names || '').split(',').map(s => s.trim()).filter(Boolean).length;
+    return count ? `Specific (${count})` : 'Specific';
+  }
+  if (n.audience === 'registered') return 'Registered guests';
+  if (n.audience === 'all' || !n.audience) return n.user_id ? `User #${n.user_id}` : 'Everyone';
+  return n.audience;
+}
+
+function openNotificationDetail(n) {
+  const targeted = n.audience === 'targeted';
+  const audienceLabel = targeted
+    ? 'Specific guests'
+    : (n.audience === 'registered' ? 'Registered guests'
+      : (n.user_id ? `User #${n.user_id}` : 'Everyone'));
+  const recipientNames = (n.recipient_names || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  const wrap = h('div', {},
+    h('div', { class: 'muted-text', style: 'font-size: 12px; letter-spacing: 0.4px; text-transform: uppercase;' }, fmtDateTime(n.created_at)),
+    h('h3', { style: 'margin: 6px 0 4px; color: var(--navy);' }, n.title),
+    h('div', { class: 'muted-text', style: 'font-size: 13px; margin-bottom: 18px;' }, audienceLabel),
+    h('p', { style: 'font-size: 14px; line-height: 1.65; white-space: pre-wrap; margin: 0;' }, n.body || '—'),
+  );
+
+  if (targeted) {
+    const recipientsBlock = h('div', { style: 'margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-soft);' },
+      h('div', { class: 'field-label', style: 'margin-bottom: 8px;' }, `Sent to (${recipientNames.length})`),
+      recipientNames.length
+        ? h('div', { style: 'display: flex; flex-wrap: wrap; gap: 6px;' },
+            ...recipientNames.map(name => h('span', {
+              style: 'background: var(--bg-soft); color: var(--text); padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;',
+            }, name)),
+          )
+        : h('div', { class: 'muted-text', style: 'font-size: 13px;' }, 'Recipient names were not recorded for this send.'),
+    );
+    wrap.appendChild(recipientsBlock);
+  }
+
+  const actions = h('div', { class: 'modal-actions', style: 'margin-top: 24px;' },
+    h('button', { class: 'btn primary', onclick: () => m.close() }, 'Close'),
+  );
+  wrap.appendChild(actions);
+  const m = openModal(wrap);
 }
 
 // Boot.

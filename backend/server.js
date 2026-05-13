@@ -139,6 +139,7 @@ api.get('/landmarks/:key', (req, res) => {
 });
 
 api.get('/menu/plat-du-jour', (_, res) => {
+  resetPlatDuJourIfNewDay();
   res.json(db.prepare(`
     SELECT * FROM plat_du_jour_items WHERE is_today = 1 ORDER BY title
   `).all());
@@ -161,7 +162,7 @@ api.post('/bookings', authRequired, (req, res) => {
     INSERT INTO bookings (user_id, resource_type, resource_id, resource_name, start_time, end_time, party_size, notes, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')
   `).run(req.user.id, resource_type, resource_id || null, resource_name || null, start_time, end_time || null, party_size || 1, notes || null);
-  maybeSendImmediateReminder(r.lastInsertRowid);
+  handleNewBookingNotifications(r.lastInsertRowid, { resource_type, resource_name, start_time, end_time, user_id: req.user.id });
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -712,6 +713,7 @@ admin.delete('/menu-items/:id', (req, res) => {
 
 // --- Plat du Jour items ---
 admin.get('/plat-du-jour', (_, res) => {
+  resetPlatDuJourIfNewDay();
   res.json(db.prepare('SELECT * FROM plat_du_jour_items ORDER BY title').all());
 });
 admin.post('/plat-du-jour', (req, res) => {
@@ -852,15 +854,23 @@ admin.post('/bookings', (req, res) => {
   if (!user_id || !resource_type || !start_time) {
     return res.status(400).json({ error: 'user_id, resource_type, start_time required' });
   }
+  const effectiveStatus = status || 'confirmed';
   const r = db.prepare(`
     INSERT INTO bookings (user_id, resource_type, resource_id, resource_name, start_time, end_time, party_size, notes, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(user_id, resource_type, resource_id || null, resource_name || null, start_time, end_time || null, party_size || 1, notes || null, status || 'confirmed');
+  `).run(user_id, resource_type, resource_id || null, resource_name || null, start_time, end_time || null, party_size || 1, notes || null, effectiveStatus);
+  if (effectiveStatus === 'confirmed') {
+    handleNewBookingNotifications(r.lastInsertRowid, { resource_type, resource_name, start_time, end_time, user_id }, { alwaysConfirm: true });
+  }
   res.json({ id: r.lastInsertRowid });
 });
 admin.put('/bookings/:id/status', (req, res) => {
   const { status } = req.body || {};
+  const before = db.prepare('SELECT user_id, resource_type, resource_name, start_time, status FROM bookings WHERE id = ?').get(req.params.id);
   db.prepare('UPDATE bookings SET status = ? WHERE id = ?').run(status, req.params.id);
+  if (before && status === 'cancelled' && before.status !== 'cancelled') {
+    notifyBookingCancellation(before);
+  }
   res.json({ ok: true });
 });
 admin.delete('/bookings/:id', (req, res) => {
@@ -994,7 +1004,7 @@ admin.put('/users/:id/approve', (req, res) => {
   db.prepare("UPDATE users SET status = 'approved' WHERE id = ?").run(req.params.id);
   // Notify the user that their account is now active.
   const u = db.prepare('SELECT name, push_token FROM users WHERE id = ?').get(req.params.id);
-  db.prepare(`INSERT INTO notifications (title, body, user_id, audience) VALUES (?, ?, ?, 'targeted')`)
+  db.prepare(`INSERT INTO notifications (title, body, user_id, audience, is_system) VALUES (?, ?, ?, 'targeted', 1)`)
     .run('Welcome to Portemilio', `Your account has been verified. Enjoy your stay${u?.name ? ', ' + u.name.split(' ')[0] : ''}!`, req.params.id);
   if (u?.push_token) {
     sendExpoPushToTokens([u.push_token], 'Welcome to Portemilio', 'Your account has been verified.').catch(() => {});
@@ -1053,11 +1063,15 @@ admin.post('/notifications', async (req, res) => {
   res.json({ ok: true, sent_to: tokens.length });
 });
 admin.get('/notifications', (_, res) => {
-  res.json(db.prepare('SELECT * FROM notifications ORDER BY created_at DESC LIMIT 200').all());
-});
-admin.delete('/notifications/:id', (req, res) => {
-  db.prepare('DELETE FROM notifications WHERE id = ?').run(req.params.id);
-  res.json({ ok: true });
+  // Only manual admin sends — automated system messages (reminders, approval welcomes)
+  // are tagged is_system=1 and excluded from this history view.
+  res.json(db.prepare(`
+    SELECT * FROM notifications
+    WHERE (is_system IS NULL OR is_system = 0)
+      AND datetime(created_at) >= datetime('now', '-7 days')
+    ORDER BY created_at DESC
+    LIMIT 200
+  `).all());
 });
 
 // --- Settings ---
@@ -1073,6 +1087,7 @@ admin.put('/settings/:key', (req, res) => {
 
 // --- Dashboard / Stats ---
 admin.get('/dashboard', (_, res) => {
+  resetPlatDuJourIfNewDay();
   const count = (sql) => db.prepare(sql).get().c;
   res.json({
     users_total: count('SELECT COUNT(*) c FROM users'),
@@ -1086,7 +1101,6 @@ admin.get('/dashboard', (_, res) => {
     events_upcoming: count(`SELECT COUNT(*) c FROM events WHERE datetime(start_time) >= datetime('now')`),
     plat_du_jour_count: count(`SELECT COUNT(*) c FROM plat_du_jour_items WHERE is_today = 1`),
     events_today: count(`SELECT COUNT(*) c FROM activities WHERE is_today = 1`),
-    notifications_total: count(`SELECT COUNT(*) c FROM notifications`),
   });
 });
 admin.get('/stats', (_, res) => {
@@ -1137,6 +1151,101 @@ function fmtReminderTime(iso) {
   } catch { return iso; }
 }
 
+// Friendly date+time string for booking confirmation messages.
+function fmtBookingWhen(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+    if (isNaN(d)) return iso;
+    return d.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
+  } catch { return iso; }
+}
+
+// Sent when a booking is created with a start time already in the past but end still
+// in the future — the guest's slot is live right now. Replaces the standard 30-min
+// reminder for that booking. is_system=1 keeps it out of the admin history.
+function notifyCourtReady({ user_id, resource_type, resource_name, end_time }) {
+  try {
+    const u = db.prepare('SELECT name, push_token FROM users WHERE id = ?').get(user_id);
+    if (!u) return;
+    const what = resource_name || (resource_type === 'tennis' ? 'court' : 'booking');
+    const endLabel = end_time ? fmtBookingWhen(end_time) : null;
+    const title = resource_type === 'tennis' ? 'Your court is ready' : 'Your booking is ready';
+    const trailing = endLabel ? ` Your slot runs until ${endLabel}.` : '';
+    const body = `Please head to ${what} now and enjoy every minute of your booking.${trailing}`;
+    db.prepare(`INSERT INTO notifications (title, body, user_id, audience, is_system) VALUES (?, ?, ?, 'targeted', 1)`)
+      .run(title, body, user_id);
+    if (u.push_token) sendExpoPushToTokens([u.push_token], title, body).catch(() => {});
+  } catch (e) {
+    console.warn('Court ready notification failed:', e.message);
+  }
+}
+
+// Drive all post-creation guest notifications for a booking. Called by both the
+// user-side and admin-side booking endpoints.
+//   - alwaysConfirm: admin bookings always send a confirmation. Self-bookings only
+//     send a confirmation when the slot is already live (the guest just clicked
+//     "book", so a future-slot confirmation would just be noise).
+//   - Live slot (start ≤ now < end): fire "Your court is ready" right away and
+//     suppress the periodic reminder via reminder_sent = 1.
+//   - Future slot: schedule the 1-min-later reminder check.
+function handleNewBookingNotifications(bookingId, payload, opts = {}) {
+  const { resource_type, resource_name, start_time, end_time, user_id } = payload;
+  const startMs = parseUtcStamp(start_time);
+  const endMs = end_time ? parseUtcStamp(end_time) : null;
+  const nowMs = Date.now();
+  const liveAtCreation = startMs != null && startMs <= nowMs && (endMs == null || endMs > nowMs);
+
+  if (opts.alwaysConfirm || liveAtCreation) {
+    notifyBookingConfirmation({ user_id, resource_type, resource_name, start_time });
+  }
+
+  if (liveAtCreation) {
+    notifyCourtReady({ user_id, resource_type, resource_name, end_time });
+    db.prepare(`UPDATE bookings SET reminder_sent = 1 WHERE id = ?`).run(bookingId);
+  } else {
+    setTimeout(() => maybeSendImmediateReminder(bookingId), REMINDER_MIN_DELAY_MS).unref?.();
+  }
+}
+
+// Sent when an admin cancels a booking. is_system=1 keeps it out of the admin history.
+function notifyBookingCancellation({ user_id, resource_type, resource_name, start_time }) {
+  try {
+    const u = db.prepare('SELECT name, push_token FROM users WHERE id = ?').get(user_id);
+    if (!u) return;
+    const what = resource_name || resource_type || 'your booking';
+    const when = fmtBookingWhen(start_time);
+    const title = `Booking cancelled — ${what}`;
+    const body = when ? `Your booking for ${when} has been cancelled. Contact reception if this was unexpected.` : 'Your booking has been cancelled. Contact reception if this was unexpected.';
+    db.prepare(`INSERT INTO notifications (title, body, user_id, audience, is_system) VALUES (?, ?, ?, 'targeted', 1)`)
+      .run(title, body, user_id);
+    if (u.push_token) sendExpoPushToTokens([u.push_token], title, body).catch(() => {});
+  } catch (e) {
+    console.warn('Booking cancellation notification failed:', e.message);
+  }
+}
+
+// Sent when an admin books on behalf of a guest. Tagged is_system=1 so it stays
+// out of the admin "Recent notifications" history — it's automated, not a manual send.
+function notifyBookingConfirmation({ user_id, resource_type, resource_name, start_time }) {
+  try {
+    const u = db.prepare('SELECT name, push_token FROM users WHERE id = ?').get(user_id);
+    if (!u) return;
+    const what = resource_name || resource_type || 'your booking';
+    const when = fmtBookingWhen(start_time);
+    const title = `Booking confirmed — ${what}`;
+    const body = when ? `Your booking is confirmed for ${when}.` : 'Your booking is confirmed.';
+    db.prepare(`INSERT INTO notifications (title, body, user_id, audience, is_system) VALUES (?, ?, ?, 'targeted', 1)`)
+      .run(title, body, user_id);
+    if (u.push_token) sendExpoPushToTokens([u.push_token], title, body).catch(() => {});
+  } catch (e) {
+    console.warn('Booking confirmation notification failed:', e.message);
+  }
+}
+
 function sendReminder(b, minutesLeft = 30) {
   const what = b.resource_name || b.resource_type || 'booking';
   const when = fmtReminderTime(b.start_time);
@@ -1150,27 +1259,44 @@ function sendReminder(b, minutesLeft = 30) {
     title = `Reminder: ${what} at ${when}`;
     body = `Your ${what.toLowerCase()} is yours in ${timePhrase}.`;
   }
-  db.prepare(`INSERT INTO notifications (title, body, user_id, audience) VALUES (?, ?, ?, 'targeted')`)
+  db.prepare(`INSERT INTO notifications (title, body, user_id, audience, is_system) VALUES (?, ?, ?, 'targeted', 1)`)
     .run(title, body, b.user_id);
   db.prepare(`UPDATE bookings SET reminder_sent = 1 WHERE id = ?`).run(b.id);
   if (b.push_token) sendExpoPushToTokens([b.push_token], title, body).catch(() => {});
 }
 
-// Called right after a new booking is created — fires the reminder immediately only
-// if the slot is already 30 minutes away or less (the periodic scan would miss it).
+// Parse a SQLite UTC datetime string ("YYYY-MM-DD HH:MM:SS" or ISO with Z) into epoch ms.
+function parseUtcStamp(s) {
+  if (!s) return null;
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return isNaN(d) ? null : d.getTime();
+}
+
+// Spacing between a booking's confirmation notification and its reminder. Ensures the
+// guest receives the confirmation first, then the reminder a moment later.
+const REMINDER_MIN_DELAY_MS = 60 * 1000;
+
+// Called right after a new booking is created — fires the reminder if the slot is
+// 35 min away or closer. Always waits at least REMINDER_MIN_DELAY_MS after the
+// booking was created so the reminder lands after the confirmation notification.
+// Time math is in JS to sidestep SQLite TZ quirks on naive datetime strings.
 function maybeSendImmediateReminder(bookingId) {
   try {
     const b = db.prepare(`
-      SELECT b.id, b.user_id, b.resource_type, b.resource_name, b.start_time, u.push_token
+      SELECT b.id, b.user_id, b.resource_type, b.resource_name, b.start_time,
+             b.status, b.reminder_sent, b.created_at, u.push_token
       FROM bookings b JOIN users u ON u.id = b.user_id
       WHERE b.id = ?
-        AND b.status = 'confirmed'
-        AND b.reminder_sent = 0
-        AND datetime(b.start_time) BETWEEN datetime('now') AND datetime('now', '+30 minutes')
     `).get(bookingId);
-    if (b) {
-      const startMs = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z').getTime();
-      const minutesLeft = (startMs - Date.now()) / 60000;
+    if (!b) return;
+    if (b.status !== 'confirmed') return;
+    if (b.reminder_sent) return;
+    const createdMs = parseUtcStamp(b.created_at);
+    if (createdMs != null && (Date.now() - createdMs) < REMINDER_MIN_DELAY_MS) return;
+    const startMs = parseUtcStamp(b.start_time);
+    if (startMs == null) return;
+    const minutesLeft = (startMs - Date.now()) / 60000;
+    if (minutesLeft >= 0 && minutesLeft <= 35) {
       sendReminder(b, minutesLeft);
     }
   } catch (e) {
@@ -1178,23 +1304,78 @@ function maybeSendImmediateReminder(bookingId) {
   }
 }
 
-// Periodic loop: every 60 s, catch bookings entering the 25–35 minute window.
+// Daily reset: clear plat du jour `is_today` flags so the admin re-selects each day.
+// Tracked via settings so a server restart on the same day doesn't wipe the admin's choice.
+function localDateString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function resetPlatDuJourIfNewDay() {
+  try {
+    const today = localDateString();
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'plat_du_jour_reset_date'`).get();
+    if (row && row.value === today) return;
+    db.prepare(`UPDATE plat_du_jour_items SET is_today = 0`).run();
+    db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('plat_du_jour_reset_date', ?)`).run(today);
+  } catch (e) {
+    console.warn('Plat du jour reset failed:', e.message);
+  }
+}
+resetPlatDuJourIfNewDay();
+setInterval(resetPlatDuJourIfNewDay, 5 * 60 * 1000);
+
+// Periodic loop: every 60 s, fire reminders for any unfired booking that is
+// upcoming within the next 35 minutes. The 0–35 window also acts as a safety
+// net if maybeSendImmediateReminder missed a fresh same-window booking.
+// Time math is done in JS to avoid SQLite TZ pitfalls with naive datetime strings.
 function scanForReminders() {
   try {
-    const due = db.prepare(`
-      SELECT b.id, b.user_id, b.resource_type, b.resource_name, b.start_time, u.push_token
+    const candidates = db.prepare(`
+      SELECT b.id, b.user_id, b.resource_type, b.resource_name, b.start_time, b.created_at, u.push_token
       FROM bookings b JOIN users u ON u.id = b.user_id
-      WHERE b.status = 'confirmed'
-        AND b.reminder_sent = 0
-        AND datetime(b.start_time) BETWEEN datetime('now', '+25 minutes') AND datetime('now', '+35 minutes')
+      WHERE b.status = 'confirmed' AND b.reminder_sent = 0
     `).all();
-    for (const b of due) sendReminder(b);
+    const nowMs = Date.now();
+    for (const b of candidates) {
+      const createdMs = parseUtcStamp(b.created_at);
+      if (createdMs != null && (nowMs - createdMs) < REMINDER_MIN_DELAY_MS) continue;
+      const startMs = parseUtcStamp(b.start_time);
+      if (startMs == null) continue;
+      const minutesLeft = (startMs - nowMs) / 60000;
+      if (minutesLeft >= 0 && minutesLeft <= 35) {
+        sendReminder(b, minutesLeft);
+      }
+    }
   } catch (e) {
     console.warn('Reminder scan failed:', e.message);
   }
 }
 setInterval(scanForReminders, 60 * 1000);
 setTimeout(scanForReminders, 5000);
+
+// Auto-complete bookings whose end_time has passed. JS time math (not SQLite) so
+// stored ISO strings with timezone offsets are interpreted consistently.
+function completePastBookings() {
+  try {
+    const rows = db.prepare(`
+      SELECT id, end_time FROM bookings
+      WHERE status = 'confirmed' AND end_time IS NOT NULL
+    `).all();
+    const nowMs = Date.now();
+    const upd = db.prepare(`UPDATE bookings SET status = 'completed' WHERE id = ?`);
+    for (const r of rows) {
+      const endMs = parseUtcStamp(r.end_time);
+      if (endMs != null && endMs <= nowMs) upd.run(r.id);
+    }
+  } catch (e) {
+    console.warn('Auto-complete bookings failed:', e.message);
+  }
+}
+completePastBookings();
+setInterval(completePastBookings, 60 * 1000);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, '0.0.0.0', () => {

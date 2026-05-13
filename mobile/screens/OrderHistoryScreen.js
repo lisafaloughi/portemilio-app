@@ -10,6 +10,17 @@ const PAST_ORDER_STATUSES = new Set(['delivered', 'cancelled']);
 const PAST_BOOKING_STATUSES = new Set(['completed', 'cancelled']);
 const ROOM_TYPES = new Set(['room', 'chalet', 'stay']);
 
+// A booking belongs in history once it's cancelled, marked completed, OR its end_time
+// has elapsed. The backend flips confirmed→completed once a minute; this client-side
+// check covers the window before that runs.
+function effectiveBookingStatus(b, nowMs = Date.now()) {
+  if (b.status === 'cancelled') return 'cancelled';
+  if (b.status === 'completed') return 'completed';
+  if (!b.end_time) return b.status;
+  const endMs = new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z').getTime();
+  return !isNaN(endMs) && endMs <= nowMs ? 'completed' : b.status;
+}
+
 export default function OrderHistoryScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,9 +34,15 @@ export default function OrderHistoryScreen({ navigation }) {
     const pastOrders = orders
       .filter(d => PAST_ORDER_STATUSES.has(d.status))
       .map(d => ({ kind: 'order', id: `o-${d.id}`, when: d.created_at, data: d }));
+    const nowMs = Date.now();
     const pastBookings = bookings
-      .filter(b => !ROOM_TYPES.has(b.resource_type) && PAST_BOOKING_STATUSES.has(b.status))
-      .map(b => ({ kind: 'booking', id: `b-${b.id}`, when: b.start_time || b.created_at, data: b }));
+      .filter(b => {
+        if (ROOM_TYPES.has(b.resource_type)) return false;
+        const s = effectiveBookingStatus(b, nowMs);
+        return PAST_BOOKING_STATUSES.has(s);
+      })
+      // Inject the effective status so the card shows "Completed" even before the backend flips it.
+      .map(b => ({ kind: 'booking', id: `b-${b.id}`, when: b.start_time || b.created_at, data: { ...b, status: effectiveBookingStatus(b, nowMs) } }));
     const combined = [...pastOrders, ...pastBookings].sort((a, b) => new Date(b.when) - new Date(a.when));
     setItems(combined);
     setLoading(false);

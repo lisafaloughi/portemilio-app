@@ -75,7 +75,14 @@ export default function InfoScreen({ navigation }) {
       api.myBookings().catch(() => []),
     ]);
     const liveOrders = dRes.filter(d => LIVE_ORDER_STATUSES.has(d.status));
-    const liveBookings = bRes.filter(b => LIVE_BOOKING_STATUSES.has(b.status));
+    const nowMs = Date.now();
+    const liveBookings = bRes.filter(b => {
+      if (!LIVE_BOOKING_STATUSES.has(b.status)) return false;
+      // A booking is only "live" until its end_time. Once finished it belongs in history.
+      if (!b.end_time) return true;
+      const endMs = new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z').getTime();
+      return isNaN(endMs) || endMs > nowMs;
+    });
     setOrders(liveOrders);
     setBookings(liveBookings);
     setHasLiveOrders(liveOrders.length > 0);
@@ -254,6 +261,10 @@ function BookingsTab({ bookings, onCancel }) {
       {bookings.map(b => {
         const start = new Date(b.start_time.includes('T') ? b.start_time : b.start_time.replace(' ', 'T') + 'Z');
         const end = b.end_time ? new Date(b.end_time.includes('T') ? b.end_time : b.end_time.replace(' ', 'T') + 'Z') : null;
+        const now = new Date();
+        // A booking is "live" once it has started and hasn't finished yet. Once live,
+        // the guest can see it but can no longer cancel — the slot is in use.
+        const isLive = start <= now && (!end || end > now);
         const timeLabel = end
           ? `${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
           : start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -267,10 +278,12 @@ function BookingsTab({ bookings, onCancel }) {
                 {b.notes ? <Text style={{ ...font.small, marginTop: 4, fontStyle: 'italic' }}>"{b.notes}"</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                <StatusChip s={b.status} />
-                <Pressable style={styles.cancelBtn} onPress={() => onCancel(b)}>
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </Pressable>
+                <StatusChip s={isLive ? 'live' : b.status} />
+                {!isLive ? (
+                  <Pressable style={styles.cancelBtn} onPress={() => onCancel(b)}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           </Card>
@@ -334,6 +347,7 @@ function StatusChip({ s }) {
     processing:        ['#fde2b3', '#8a5a00', 'Processing'],
     out_for_delivery:  ['#cce5ff', '#004085', 'On the way'],
     confirmed:         ['#d4edda', '#155724', 'Confirmed'],
+    live:              ['#cce5ff', '#004085', 'Live'],
   };
   const [bg, fg, label] = map[s] || ['#eee', '#444', s];
   return (

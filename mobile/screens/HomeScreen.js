@@ -11,6 +11,7 @@ import {
   Alert,
   Linking,
   PanResponder,
+  RefreshControl,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -270,6 +271,7 @@ export default function HomeScreen({ navigation }) {
   const [deliveryUnitType, setDeliveryUnitType] = useState('room');
   const [deliveryUnitNumber, setDeliveryUnitNumber] = useState('');
   const [deliveryEditing, setDeliveryEditing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { isGuest, signOut, user } = useAuth();
 
   const startXRef = useRef(0);
@@ -291,25 +293,36 @@ export default function HomeScreen({ navigation }) {
     []
   );
 
+  const loadHomeData = useCallback(async () => {
+    const [orders, bookings, notifs, plats] = await Promise.all([
+      api.myDeliveries().catch(() => []),
+      api.myBookings().catch(() => []),
+      isGuest ? Promise.resolve([]) : api.myNotifications().catch(() => []),
+      api.platDuJour().catch(() => []),
+    ]);
+    const live =
+      orders.some(o => LIVE_ORDER_STATUSES.has(o.status)) ||
+      bookings.some(b => LIVE_BOOKING_STATUSES.has(b.status));
+    setHasLiveRequests(live);
+    setUnreadCount(notifs.filter(n => !n.read).length);
+    setPlatItems(plats || []);
+    setPlatIndex(0);
+  }, [isGuest]);
+
   useFocusEffect(
     useCallback(() => {
-      (async () => {
-        const [orders, bookings, notifs, plats] = await Promise.all([
-          api.myDeliveries().catch(() => []),
-          api.myBookings().catch(() => []),
-          isGuest ? Promise.resolve([]) : api.myNotifications().catch(() => []),
-          api.platDuJour().catch(() => []),
-        ]);
-        const live =
-          orders.some(o => LIVE_ORDER_STATUSES.has(o.status)) ||
-          bookings.some(b => LIVE_BOOKING_STATUSES.has(b.status));
-        setHasLiveRequests(live);
-        setUnreadCount(notifs.filter(n => !n.read).length);
-        setPlatItems(plats || []);
-        setPlatIndex(0);
-      })();
-    }, [])
+      loadHomeData();
+    }, [loadHomeData])
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadHomeData();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadHomeData]);
 
   const goTo = (target) => {
     if (!target) return;
@@ -455,9 +468,11 @@ export default function HomeScreen({ navigation }) {
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: colors.surface }}
         contentContainerStyle={{
           paddingBottom: (reviewDismissed ? 40 : 180) + insets.bottom,
         }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <ImageBackground
           source={HERO_IMG}
